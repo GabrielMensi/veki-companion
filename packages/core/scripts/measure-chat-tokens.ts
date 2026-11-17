@@ -8,16 +8,15 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { MEASURED_SYSTEM, MEASURED_TOOLS, estimatePromptTokens } from "../src/index";
 
 const MODEL = "openai/gpt-oss-120b";
 const BUDGET = 2500;
 
-// ---- PLACEHOLDER until T16 exists: replace with the real system prompt and tool definitions. ----
-const PLACEHOLDER_SYSTEM = "PLACEHOLDER (T16 pending). Sos Veki, la asistente de un emprendimiento de bolsos y neceseres. Hablás en rioplatense con vos. Usá las herramientas para guardar productos, variantes, precios y ferias.";
-const PLACEHOLDER_TOOLS = [
-  { type: "function", function: { name: "guardar_producto", description: "PLACEHOLDER: guarda o actualiza un borrador de producto.", parameters: { type: "object", properties: { nombre: { type: "string" }, precio: { type: "number" } }, required: ["nombre"] } } },
-];
-// -------------------------------------------------------------------------------------------------
+// Real prompt and tool definitions from T16 (same objects the agent sends on every call).
+// The Groq/OpenAI wire format wraps each tool in { type: "function", function: ... }.
+const SYSTEM = MEASURED_SYSTEM;
+const TOOLS = MEASURED_TOOLS.map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.parameters } }));
 
 function loadKey(): string | undefined {
   if (process.env.GROQ_API_KEY) return process.env.GROQ_API_KEY;
@@ -50,13 +49,14 @@ async function main() {
   }
   const user = { role: "user", content: "hola" };
   const base = await probe(key, { messages: [user] });
-  const full = await probe(key, { messages: [{ role: "system", content: PLACEHOLDER_SYSTEM }, user], tools: PLACEHOLDER_TOOLS });
+  const full = await probe(key, { messages: [{ role: "system", content: SYSTEM }, user], tools: TOOLS });
   console.log(`baseline (user "hola" only) prompt_tokens=${base.promptTokens} status=${base.status}`);
   console.log(`system+tools prompt_tokens=${full.promptTokens} status=${full.status} (budget ${BUDGET})`);
   if (full.promptTokens !== undefined && base.promptTokens !== undefined) {
     console.log(`system+tools overhead=${full.promptTokens - base.promptTokens}`);
   }
-  console.log("NOTE: prompt/tools are T16 PLACEHOLDERS; re-run once T16 lands.");
+  const est = estimatePromptTokens();
+  console.log(`offline ESTIMATE (~3.5 chars/token, not a real count): system=${est.system} tools=${est.tools} total=${est.total}`);
   console.log("rate-limit headers:");
   for (const [k, v] of Object.entries(full.headers)) console.log(`  ${k}: ${v}`);
   const daily = Object.keys(full.headers).some((k) => /tokens/.test(k));
