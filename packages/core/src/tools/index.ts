@@ -1,7 +1,8 @@
-import { copy, copyVistaPrevia, formatPrecio } from "../copy/es-AR";
+import { normalizeText } from "../catalog/search";
+import { copy, copyResolucion, copyVistaPrevia, formatPrecio } from "../copy/es-AR";
 import type { Draft } from "../agent/draft";
 import { nextMissingField } from "../agent/draft";
-import { toolKinds, toolSchemas, type ToolName } from "./defs";
+import { MAX_BOTONES, toolKinds, toolSchemas, type ToolName } from "./defs";
 
 export * from "./defs";
 
@@ -71,6 +72,101 @@ async function productoActual(host: ToolHost, args: Record<string, unknown>) {
   }
 }
 
+type CatalogProductHit = {
+  id: string;
+  nombre: string;
+  variantes?: { id: string; diseno?: string; talle?: string; color?: string; stock?: number | null }[];
+};
+
+const variantLabel = (v: NonNullable<CatalogProductHit["variantes"]>[number]) =>
+  [v.diseno, v.talle, v.color].filter(Boolean).join(" ").trim() || "Única";
+
+async function resolveProductByName(
+  host: ToolHost,
+  query: string,
+): Promise<{ ok: true; product: CatalogProductHit } | { ok: false; outcome: ToolOutcome }> {
+  if (!host.read) return { ok: false, outcome: { kind: "error", message: copyResolucion.productoNoEncontrado(query) } };
+  const raw = await host.read("buscar_productos", { consulta: query });
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return { ok: false, outcome: { kind: "result", content: copyResolucion.productoNoEncontrado(query) } };
+  }
+  const hits = raw as CatalogProductHit[];
+  if (hits.length === 1) return { ok: true, product: hits[0]! };
+  const qNorm = normalizeText(query);
+  const exact = hits.filter((h) => normalizeText(h.nombre) === qNorm);
+  if (exact.length === 1) return { ok: true, product: exact[0]! };
+  const opts = hits.slice(0, MAX_BOTONES).map((h) => h.nombre);
+  return {
+    ok: false,
+    outcome: {
+      kind: "result",
+      content: `Varios productos coinciden con "${query}": ${opts.join(", ")}. Preguntale cuál es con responder usando botones (${opts.join(", ")}).`,
+    },
+  };
+}
+
+/** Resuelve `producto_id` / `variante_id` en el servidor cuando el modelo pasa nombres en lugar de ids. */
+async function resolveWriteArgs(
+  host: ToolHost,
+  name: ToolName,
+  args: Record<string, unknown>,
+): Promise<{ ok: true; args: Record<string, unknown> } | { ok: false; outcome: ToolOutcome }> {
+  if (name === "editar_producto") {
+    if (typeof args.producto_id === "string" && args.producto_id) return { ok: true, args };
+    const query = typeof args.producto === "string" ? args.producto.trim() : "";
+    if (!query) return { ok: false, outcome: { kind: "error", message: copyResolucion.faltaProducto } };
+    const res = await resolveProductByName(host, query);
+    if (!res.ok) return res;
+    return { ok: true, args: { ...args, producto_id: res.product.id } };
+  }
+  if (name === "cambiar_stock") {
+    if (typeof args.variante_id === "string" && args.variante_id) return { ok: true, args };
+    const prodQuery = typeof args.producto === "string" ? args.producto.trim() : "";
+    const varQuery = typeof args.variante === "string" ? args.variante.trim() : "";
+    const searchQuery = prodQuery || varQuery;
+    if (!searchQuery) return { ok: false, outcome: { kind: "error", message: copyResolucion.faltaProducto } };
+    const res = await resolveProductByName(host, searchQuery);
+    if (!res.ok) return res;
+    const prod = res.product;
+    const variants = prod.variantes ?? [];
+    if (variants.length === 0) {
+      return { ok: false, outcome: { kind: "result", content: copyResolucion.sinVariantesActivas(prod.nombre) } };
+    }
+    if (!varQuery) {
+      if (variants.length === 1) return { ok: true, args: { ...args, variante_id: variants[0]!.id } };
+      const opts = variants.slice(0, MAX_BOTONES).map(variantLabel);
+      return {
+        ok: false,
+        outcome: {
+          kind: "result",
+          content: `${prod.nombre} tiene varias variantes: ${opts.join(", ")}. Preguntale cuál es con responder usando botones (${opts.join(", ")}).`,
+        },
+      };
+    }
+    const words = normalizeText(varQuery).split(" ").filter(Boolean);
+    const matched = variants.filter((v) => {
+      const lbl = normalizeText(variantLabel(v));
+      return words.every((w) => lbl.includes(w));
+    });
+    if (matched.length === 0) {
+      return { ok: false, outcome: { kind: "result", content: copyResolucion.varianteNoEncontrada(varQuery, prod.nombre) } };
+    }
+    if (matched.length === 1) return { ok: true, args: { ...args, variante_id: matched[0]!.id } };
+    const vNorm = normalizeText(varQuery);
+    const exact = matched.filter((v) => normalizeText(variantLabel(v)) === vNorm);
+    if (exact.length === 1) return { ok: true, args: { ...args, variante_id: exact[0]!.id } };
+    const opts = matched.slice(0, MAX_BOTONES).map(variantLabel);
+    return {
+      ok: false,
+      outcome: {
+        kind: "result",
+        content: `Varias variantes de ${prod.nombre} coinciden con "${varQuery}": ${opts.join(", ")}. Preguntale cuál es con responder usando botones (${opts.join(", ")}).`,
+      },
+    };
+  }
+  return { ok: true, args };
+}
+
 /**
  * Ejecuta una herramienta que NO es `responder` ni `actualizar_borrador` (esas las maneja el ciclo, porque
  * tocan el estado y la salida). Las de escritura nunca escriben: crean una `pending_action`.
@@ -95,14 +191,16 @@ export async function runTool(
   }
 
   if (kind === "write") {
-    let toStore = args;
+    const resolved = await resolveWriteArgs(host, name, args);
+    if (!resolved.ok) return resolved.outcome;
+    let toStore = resolved.args;
     if (name === "crear_producto") {
       if (!ctx.draft || ctx.draft.tipo !== "producto") return { kind: "error", message: "No hay borrador de producto. Usá actualizar_borrador primero." };
       const missing = nextMissingField(ctx.draft);
       if (missing) return { kind: "error", message: `Falta ${missing}: preguntale ${copy.campoFaltante[missing]}.` };
       toStore = { draft: ctx.draft };
     }
-    const preview = previewFor(name, args, ctx.draft, name === "editar_producto" ? await productoActual(host, args) : null);
+    const preview = previewFor(name, resolved.args, ctx.draft, name === "editar_producto" ? await productoActual(host, resolved.args) : null);
     const { id } = await host.createPendingAction({
       chatId: ctx.chatId,
       tool: name,

@@ -216,3 +216,11 @@ export const copyVistaPrevia = {
     return lineas.join("\n");
   },
 };
+
+// ── MITIG: resolución server-side de producto/variante en editar_producto y cambiar_stock ──
+export const copyResolucion = {
+  productoNoEncontrado: (nombre: string) => `No encontré "${nombre}" en el catálogo. ¿Me decís de nuevo cuál es?`,
+  varianteNoEncontrada: (variante: string, producto: string) => `No encontré la variante "${variante}" en ${producto}. ¿Cuál es?`,
+  sinVariantesActivas: (producto: string) => `${producto} no tiene variantes activas.`,
+  faltaProducto: "Falta indicar qué producto es.",
+};

@@ -11,8 +11,8 @@ Qué herramienta es obligatoria:
 - Aviso "(sistema) La usuaria mandó N fotos. media_ids: ...": actualizar_borrador (tipo producto, media_ids copiados del aviso) y después preguntá qué producto es.
 - Cuenta un producto o feria nuevos (nombre, precio, categoría, fechas): actualizar_borrador con lo que dijo, aunque falte el resto.
 - Borrador sin faltantes ("Falta: nada"): crear_producto o crear_feria, sin preguntar nada.
-- Cambiar un precio o dato: buscar_productos para el id y después editar_producto.
-- Vendió, repuso o ajustó stock: buscar_productos para el id de la variante y después cambiar_stock (venta = delta negativo).
+- Cambiar un precio o dato: editar_producto directo con el nombre del producto (sin buscar_productos antes).
+- Vendió, repuso o ajustó stock: cambiar_stock directo con producto y variante (venta = delta negativo; sin buscar_productos antes).
 - "Deshacé" o "volvé atrás": deshacer.
 - Preguntas sobre catálogo o agenda: buscar_productos, ver_producto o ver_agenda. Nunca de memoria.
 Importes: "doce mil quinientos" es 12500. Guardá el número tal cual lo oíste; aunque suene dudoso lo muestra la vista previa y ella confirma con Sí.

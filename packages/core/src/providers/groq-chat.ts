@@ -1,4 +1,4 @@
-import { ProviderError, doFetch, readJson } from "./errors";
+import { ProviderError, doFetch, isProviderError, readJson } from "./errors";
 import type { ChatProvider, ChatRequest, ChatResult, Msg, ToolCall } from "./types";
 
 const ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
@@ -22,22 +22,41 @@ export class GroqChat implements ChatProvider {
 
   async complete(req: ChatRequest): Promise<ChatResult> {
     const label = `groq:${this.o.model}`;
-    const body: Record<string, unknown> = {
-      model: this.o.model,
-      temperature: this.o.temperature ?? 0.3,
-      messages: [{ role: "system", content: req.system }, ...req.messages.map(toWire)],
+    const send = async (toolChoice?: ChatRequest["toolChoice"]) => {
+      const body: Record<string, unknown> = {
+        model: this.o.model,
+        temperature: this.o.temperature ?? 0.3,
+        messages: [{ role: "system", content: req.system }, ...req.messages.map(toWire)],
+      };
+      if (req.tools?.length) {
+        body.tools = req.tools.map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.parameters } }));
+        if (toolChoice) body.tool_choice = toolChoice;
+      }
+      if (req.json) {
+        body.response_format = { type: "json_schema", json_schema: { name: "response", schema: req.json } };
+      }
+      return doFetch(this.o.fetch ?? fetch, label, ENDPOINT, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${this.o.apiKey}` },
+        body: JSON.stringify(body),
+      });
     };
-    if (req.tools?.length) {
-      body.tools = req.tools.map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.parameters } }));
+
+    let res: Response;
+    try {
+      res = await send(req.toolChoice);
+    } catch (e) {
+      if (
+        req.toolChoice === "required" &&
+        isProviderError(e) &&
+        (e.status === 400 || e.status === 422) &&
+        (e.kind === "fatal" || /tool_choice/i.test(e.message))
+      ) {
+        res = await send("auto");
+      } else {
+        throw e;
+      }
     }
-    if (req.json) {
-      body.response_format = { type: "json_schema", json_schema: { name: "response", schema: req.json } };
-    }
-    const res = await doFetch(this.o.fetch ?? fetch, label, ENDPOINT, {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${this.o.apiKey}` },
-      body: JSON.stringify(body),
-    });
     const j = (await readJson(res, label)) as {
       choices?: { message?: { content?: string | null; tool_calls?: { id: string; function: { name: string; arguments: string } }[] } }[];
       usage?: { prompt_tokens?: number; completion_tokens?: number };
