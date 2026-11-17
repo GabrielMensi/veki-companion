@@ -11,6 +11,8 @@ import {
 import { D1ConversationStore, isVersionConflict } from "./actions/conversation-store";
 import { attachMessage, d1ToolHost } from "./actions/pending";
 import { parseAllowlist, type Env } from "./env";
+import { catalogRead } from "./tools/catalog";
+import "./actions/executors-catalog"; // registra los ejecutores de catálogo y de respaldo (T19)
 import { albumEventText, setAgentEntry, type AgentEntry } from "./jobs/album-flush";
 import { chatChainDeps } from "./provider-ports";
 import { logEvent } from "./queues";
@@ -50,7 +52,7 @@ export function buildRuntime(env: Env): Runtime {
     chat: buildChatChain(env),
     stt: buildStt(env),
     store: new D1ConversationStore(env.DB, (id) => allow.get(id) ?? "owner"),
-    host: d1ToolHost(env),
+    host: d1ToolHost(env, catalogRead(env.DB)),
   };
 }
 
