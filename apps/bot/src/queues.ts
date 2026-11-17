@@ -1,6 +1,6 @@
 import { ulid } from "@veki/core";
 import type { Env } from "./env";
-import { handleUpdateMessage } from "./handlers/callback";
+import { handleUpdateMessage } from "./handlers/dispatch";
 import { handleAlbumFlush } from "./jobs/album-flush";
 
 /** Mensajes de q-updates y q-jobs. `type` decide el handler. */
@@ -18,7 +18,7 @@ export type Handler = (msg: any, env: Env) => Promise<void>;
 const stub: Handler = async () => {};
 
 export const handlers: Record<string, Handler> = {
-  update: handleUpdateMessage, // T18: callbacks; T16/T17 enchufan texto, voz y fotos acá
+  update: handleUpdateMessage,
   "vision.rank": stub,
   "content.generate": stub,
   "content.deliver": stub,

@@ -28,6 +28,10 @@ export interface Env {
   TG_WEBHOOK_SECRET: string;
   /** Secret (`wrangler secret`): URL del deploy hook de Pages para reconstruir el sitio. Opcional: sin ella no se reconstruye. */
   DEPLOY_HOOK_URL?: string;
+  /** Secret (`wrangler secret`): clave de Groq (chat y voz). Sin ella el agente responde que algo salió mal. */
+  GROQ_API_KEY?: string;
+  /** Secret (`wrangler secret`): clave de Gemini (respaldo del chat). */
+  GEMINI_API_KEY?: string;
   /** Var del Worker: lista `id:rol` separada por comas, p. ej. `111:owner,222:admin`. Un id suelto es `owner`. */
   ALLOWED_CHAT_IDS: string;
 }
