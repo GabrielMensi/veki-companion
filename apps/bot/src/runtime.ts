@@ -1,4 +1,5 @@
 import {
+  botonCallbackData,
   createGroqChatChain,
   createSttProvider,
   type ChatSettings,
@@ -74,7 +75,7 @@ export function telegramSender(token: string, fetchFn: typeof fetch = fetch): Se
         chat_id: chatId,
         text: out.texto,
         ...(out.botones?.length
-          ? { reply_markup: { inline_keyboard: [out.botones.map((b) => ({ text: b.etiqueta, callback_data: b.valor }))] } }
+          ? { reply_markup: { inline_keyboard: [out.botones.map((b) => ({ text: b.etiqueta, callback_data: botonCallbackData(b.valor) }))] } }
           : {}),
       }),
     });

@@ -5,6 +5,35 @@ export type Boton = { etiqueta: string; valor: string };
 /** `callback_data` de los botones de una acción pendiente: `pa:<id>:yes|edit|no` (docs/02 §3.1). */
 export const paData = (id: string, accion: "yes" | "edit" | "no") => `pa:${id}:${accion}`;
 
+/**
+ * `callback_data` de los botones que NO son de acciones pendientes (docs/02 §3.3 y §3.4 no fijan el formato; este es el mínimo):
+ *  - `sc:<clave>`: atajo tras 2 malentendidos. La clave se traduce a una frase fija (`atajoFrases`) que entra al agente.
+ *  - `ch:<texto>`: botón de elección que ofrece el agente con `responder`; el texto es el `valor` del botón (cortado a que
+ *    todo el `callback_data` entre en 64 bytes, el tope de Telegram) y entra al agente como si ella lo hubiera escrito.
+ */
+export const SC_PREFIX = "sc:";
+export const CH_PREFIX = "ch:";
+export const MAX_CALLBACK_BYTES = 64;
+export const scData = (clave: string) => `${SC_PREFIX}${clave}`;
+export function chData(valor: string): string {
+  const enc = new TextEncoder();
+  let out = "";
+  for (const ch of valor) {
+    if (enc.encode(CH_PREFIX + out + ch).length > MAX_CALLBACK_BYTES) break;
+    out += ch;
+  }
+  return CH_PREFIX + out;
+}
+/** `callback_data` de un botón de `responder`: los de acciones y atajos quedan como están; el resto es una elección. */
+export const botonCallbackData = (valor: string) => (/^(pa|sc|ch):/.test(valor) ? valor : chData(valor));
+/** Frase que entra al agente al tocar cada atajo. */
+export const atajoFrases: Record<string, string> = {
+  producto: "Quiero cargar un producto nuevo",
+  venta: "Vendí algo",
+  feria: "Quiero cargar una feria nueva",
+  flyer: "Quiero pedir un flyer",
+};
+
 export const copy = {
   noEntendi: "Perdón, no te entendí. ¿Me lo decís de otra forma?",
   algoSalioMal: "Ups, algo salió mal de mi lado. ¿Probás de nuevo? 🙏",
@@ -16,10 +45,10 @@ export const copy = {
   /** Atajos tras 2 malentendidos seguidos (docs/02 §3.4). */
   atajosTexto: "Probemos por acá, ¿qué querés hacer?",
   atajos: [
-    { etiqueta: "Cargar producto", valor: "atajo:producto" },
-    { etiqueta: "Vendí algo", valor: "atajo:venta" },
-    { etiqueta: "Nueva feria", valor: "atajo:feria" },
-    { etiqueta: "Pedir flyer", valor: "atajo:flyer" },
+    { etiqueta: "Cargar producto", valor: scData("producto") },
+    { etiqueta: "Vendí algo", valor: scData("venta") },
+    { etiqueta: "Nueva feria", valor: scData("feria") },
+    { etiqueta: "Pedir flyer", valor: scData("flyer") },
   ] satisfies Boton[],
   botonesAccion: (id: string): Boton[] => [
     { etiqueta: "Sí", valor: paData(id, "yes") },
@@ -167,4 +196,23 @@ export const copyAdmin = {
 export const copyAdminEscalacion = {
   malentendidos: (updateId: number | undefined) =>
     `Alerta: dos malentendidos seguidos en la conversación${updateId === undefined ? "" : ` (mensaje ${updateId})`}. Mirá /log.`,
+};
+
+// ── FIX: vistas previas de editar_producto y deshacer (texto para ella, sin ids ni JSON) ──
+export const copyVistaPrevia = {
+  deshacer: "Voy a deshacer lo último que hiciste 👇",
+  generica: "Voy a hacer este cambio 👇",
+  /** `actual`: datos de hoy del producto (si se pudieron leer). `precioActual` ya viene con formato. */
+  editarProducto: (
+    actual: { nombre?: string; precioActual?: string } | null,
+    c: { name?: string; price_ars?: number; description?: string; category?: string; status?: "active" | "hidden" },
+  ): string => {
+    const lineas = [`Voy a cambiar ${actual?.nombre ?? "este producto"} 👇`];
+    if (c.name !== undefined) lineas.push(`Nombre: ${actual?.nombre ? `${actual.nombre} → ` : ""}${c.name}`);
+    if (c.price_ars !== undefined) lineas.push(`Precio: ${actual?.precioActual ? `${actual.precioActual} → ` : ""}${formatPrecio(c.price_ars)}`);
+    if (c.category !== undefined) lineas.push(`Categoría: ${c.category}`);
+    if (c.description !== undefined) lineas.push(`Descripción: ${c.description}`);
+    if (c.status !== undefined) lineas.push(c.status === "hidden" ? "Lo escondo de la tienda" : "Lo muestro en la tienda");
+    return lineas.join("\n");
+  },
 };

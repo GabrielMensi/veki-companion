@@ -80,7 +80,7 @@ describe('"Cambiar" en la vista previa', () => {
     const all = await rows<{ id: string; status: string }>("SELECT id, status FROM pending_actions ORDER BY id");
     expect(all.map((a) => a.status)).toEqual(["cancelled", "pending"]);
     expect(all[0]!.id).toBe(first!.id);
-    expect(w.last().text).toContain("20000");
+    expect(w.last().text).toContain("$20.000");
 
     // El "Si" viejo ya no hace nada; el nuevo cambia el precio una sola vez.
     await w.tapData(oldYes);
@@ -127,18 +127,41 @@ describe("dos malentendidos seguidos: atajos para ella y alerta para Gabriel", (
   // HALLAZGO (T23, reportado al orquestador): los botones de atajo y los de eleccion (`responder.botones`) llevan
   // `callback_data` que no es `pa:<id>:...`; `handleCallback` los ignora (solo corta el relojito), asi que tocarlos
   // no llega al agente. Cuando se arregle, este test deja de fallar y hay que sacar el `.fails`.
-  it.fails("tocar un atajo ('Cargar producto') le llega al agente y ella recibe una respuesta", async () => {
+  it("tocar un atajo ('Cargar producto') le llega al agente y ella recibe una respuesta", async () => {
+    // Confundido mientras escribe "???"; responde bien cuando le llega la frase del atajo.
     const chat = new FakeChatProvider([
-      { text: "mmm", toolCalls: [], usage: { tokensIn: 1, tokensOut: 1 } },
-      { text: "mmm", toolCalls: [], usage: { tokensIn: 1, tokensOut: 1 } },
-      () => responder("Dale, ¿cómo se llama?"),
+      (req): ChatResult => (JSON.stringify(req).includes("Quiero cargar un producto nuevo") ? responder("Dale, ¿cómo se llama?") : { text: "mmm", toolCalls: [], usage: { tokensIn: 1, tokensOut: 1 } }),
     ]);
     world = startWorld({ chat });
     await world.text("???");
     await world.text("???");
     const before = world.sent().length;
-    await world.tap("Cargar producto");
+    const data = await world.tap("Cargar producto");
+    expect(data).toBe("sc:producto");
     expect(world.sent().length).toBe(before + 1);
+    expect(world.last().text).toBe("Dale, ¿cómo se llama?");
+    // El agente recibio la frase fija del atajo como si ella la hubiera escrito.
+    expect(JSON.stringify(world.chat.requests.at(-1))).toContain("Quiero cargar un producto nuevo");
+  });
+
+  it("tocar un boton de eleccion del agente entra como si lo hubiera escrito; el callback_data entra en 64 bytes", async () => {
+    const largo = "variante con un nombre larguisimo ".repeat(4) + "ñandú";
+    const chat = new FakeChatProvider([
+      () => responder("¿Cuál?", [{ etiqueta: "Rosa", valor: "la rosa" }, { etiqueta: "Larga", valor: largo }]),
+      () => responder("Dale, la rosa."),
+      () => responder("Dale, esa."),
+    ]);
+    world = startWorld({ chat });
+    await world.text("vendí un neceser");
+    const buttons = world.last().buttons;
+    expect(buttons.map((b) => b.callback_data)[0]).toBe("ch:la rosa");
+    for (const b of buttons) expect(new TextEncoder().encode(b.callback_data).length).toBeLessThanOrEqual(64);
+
+    await world.tap("Rosa");
+    expect(world.last().text).toBe("Dale, la rosa.");
+    expect(JSON.stringify(world.chat.requests.at(-1))).toContain("la rosa");
+    await world.tapData(buttons[1]!.callback_data);
+    expect(world.last().text).toBe("Dale, esa.");
   });
 });
 
@@ -150,7 +173,7 @@ describe("Groq limitado: ella solo ve 'te aviso en un ratito', sin errores", () 
   // de texto/voz y contesta `copy.algoSalioMal` sin relanzar; el `ProviderError` con `retryAfterS` nunca llega a `handleBatch`,
   // asi que ella ve "Ups, algo salio mal" y el update no se reintenta. El camino de la cola (aviso + retry) solo esta probado
   // con un router falso (r3-wiring.test.ts). Cuando dispatch relance los ProviderError, este test deja de fallar: sacar el `.fails`.
-  it.fails("aviso amable una sola vez, el update se reintenta con el retry-after y despues se responde", async () => {
+  it("aviso amable una sola vez, el update se reintenta con el retry-after y despues se responde", async () => {
     world = startWorld({ chat: limited() });
     const w = world;
     const update = w.msg(OWNER, { text: "hola" });
