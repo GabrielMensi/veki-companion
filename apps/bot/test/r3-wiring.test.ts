@@ -92,4 +92,60 @@ describe("handleBatch rate-limit handling (R3)", () => {
     expect(r.retries).toEqual([60]);
     expect(r.sends).toHaveLength(0);
   });
+
+  const runJob = async (body: Record<string, unknown>, attempts: number, router?: Record<string, Handler>) => {
+    stubFetch(groqOk);
+    const retries: (number | undefined)[] = [];
+    const m: QueueMessageLike = { body, attempts, ack: () => {}, retry: (o) => void retries.push(o?.delaySeconds) };
+    const r = router ?? { [String(body.type)]: async () => { throw new ProviderError("rate_limit", "x", { retryAfterS: 90 }); } };
+    await handleBatch({ queue: "q-jobs", messages: [m] }, mkEnv(), r);
+    return { retries, sends: calls.filter((c) => c.url.includes("sendMessage")) };
+  };
+
+  it("job carrying chat_id: friendly message once, none on the retry (no double send)", async () => {
+    const first = await runJob({ type: "content.generate", chat_id: CHAT }, 1);
+    expect(first.retries).toEqual([90]);
+    expect(first.sends).toHaveLength(1);
+    expect(first.sends[0]!.body.chat_id).toBe(CHAT);
+    expect(first.sends[0]!.body.text).toContain("te aviso en un ratito");
+    const second = await runJob({ type: "content.generate", chat_id: CHAT }, 2);
+    expect(second.retries).toEqual([90]);
+    expect(second.sends).toHaveLength(0);
+  });
+
+  it("album.flush resolves the chat from inbox_groups, sends once and not on the retry", async () => {
+    await db.prepare("DELETE FROM inbox_groups").run();
+    await db.prepare("INSERT INTO inbox_groups (media_group_id, chat_id, item_count, first_at, last_at, status) VALUES ('g-busy', ?, 1, 1, 1, 'open')").bind(CHAT).run();
+    const first = await runJob({ type: "album.flush", gid: "g-busy" }, 1);
+    expect(first.sends).toHaveLength(1);
+    expect(first.sends[0]!.body.chat_id).toBe(CHAT);
+    expect((await runJob({ type: "album.flush", gid: "g-busy" }, 2)).sends).toHaveLength(0);
+  });
+
+  it("real album.flush handler: all models rate-limited -> one friendly message, group reopened for the retry", async () => {
+    const { handlers } = await import("../src/queues");
+    const { setAgentEntry } = await import("../src/jobs/album-flush");
+    await db.prepare("DELETE FROM inbox_groups").run();
+    await db.prepare("INSERT INTO inbox_groups (media_group_id, chat_id, item_count, first_at, last_at, status) VALUES ('g-real', ?, 1, 1, 1, 'open')").bind(CHAT).run();
+    setAgentEntry(async () => { throw new ProviderError("rate_limit", "x", { retryAfterS: 45 }); });
+    try {
+      const first = await runJob({ type: "album.flush", gid: "g-real" }, 1, handlers);
+      expect(first.retries).toEqual([45]);
+      expect(first.sends).toHaveLength(1);
+      expect(first.sends[0]!.body.chat_id).toBe(CHAT);
+      const second = await runJob({ type: "album.flush", gid: "g-real" }, 2, handlers);
+      expect(second.retries).toEqual([45]);
+      expect(second.sends).toHaveLength(0);
+    } finally {
+      setAgentEntry(null);
+    }
+  });
+
+  it("job without any resolvable chat sends nothing but still retries", async () => {
+    const r = await runJob({ type: "content.generate" }, 1);
+    expect(r.retries).toEqual([90]);
+    expect(r.sends).toHaveLength(0);
+    const unknownGroup = await runJob({ type: "album.flush", gid: "no-such-group" }, 1);
+    expect(unknownGroup.sends).toHaveLength(0);
+  });
 });

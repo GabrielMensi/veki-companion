@@ -46,11 +46,27 @@ export async function logEvent(env: Env, type: string, severity: "info" | "warn"
     .run();
 }
 
+/** Chat al que avisar: el del update/callback; en jobs, `chat_id` si lo trae, o el del grupo del álbum (`inbox_groups`). */
+async function resolveChatId(body: unknown, env: Env): Promise<number | null> {
+  const b = body as {
+    update?: { message?: { chat?: { id?: number } }; callback_query?: { message?: { chat?: { id?: number } } } };
+    chat_id?: unknown;
+    gid?: unknown;
+  } | null;
+  const fromUpdate = b?.update?.message?.chat?.id ?? b?.update?.callback_query?.message?.chat?.id;
+  if (typeof fromUpdate === "number") return fromUpdate;
+  if (typeof b?.chat_id === "number") return b.chat_id;
+  if (typeof b?.gid === "string") {
+    const g = await env.DB.prepare("SELECT chat_id FROM inbox_groups WHERE media_group_id = ?").bind(b.gid).first<{ chat_id: number }>();
+    if (typeof g?.chat_id === "number") return g.chat_id;
+  }
+  return null;
+}
+
 async function notifyBusy(body: unknown, env: Env): Promise<void> {
-  const u = (body as { update?: { message?: { chat?: { id?: number } }; callback_query?: { message?: { chat?: { id?: number } } } } } | null)?.update;
-  const chatId = u?.message?.chat?.id ?? u?.callback_query?.message?.chat?.id;
-  if (typeof chatId !== "number") return;
   try {
+    const chatId = await resolveChatId(body, env);
+    if (chatId === null) return;
     await sendTelegram(env.TELEGRAM_BOT_TOKEN, chatId, copyPresupuesto.teAvisoEnUnRatito);
   } catch {
     /* el aviso es de cortesía: nunca rompe el reintento */
@@ -81,7 +97,8 @@ export async function handleBatch(batch: MessageBatchLike, env: Env, router: Rec
         await logEvent(env, "error", "error", { queue: batch.queue, type: body!.type, attempts: m.attempts });
         m.ack();
       } else {
-        // R3: todos los modelos limitados (429 / cooldown) -> reintento con el `retry-after`; ella solo ve el aviso amable, una vez.
+        // R3: todos los modelos limitados (429 / cooldown) -> reintento con el `retry-after`; ella solo ve el aviso amable, una vez
+        // por mensaje (`attempts === 1`), sea update o job.
         if (isProviderError(err) && err.retryAfterS !== undefined && m.attempts === 1) await notifyBusy(body, env);
         m.retry({ delaySeconds: retryDelayS(err, m.attempts) });
       }

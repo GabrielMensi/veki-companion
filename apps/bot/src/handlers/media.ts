@@ -6,6 +6,7 @@ import { mediaKey, newMediaId, putOriginal, type R2Like } from "../r2";
 export type DbBatch = D1DatabaseLike & { batch(stmts: D1PreparedStatementLike[]): Promise<{ meta: { changes: number } }[]> };
 
 export const ALBUM_DELAY_SECONDS = 3;
+/** Membresía anterior a la migración 0002: filas de `event_log` de este tipo. Solo se lee (álbumes viejos). */
 export const MEMBER_EVENT = "media.group_member";
 
 export type MediaItem = {
@@ -131,12 +132,8 @@ export async function ingestMedia(deps: MediaDeps, m: TgMessage): Promise<Ingest
             "INSERT INTO inbox_groups (media_group_id, chat_id, item_count, first_at, last_at, status) VALUES (?, ?, 1, ?, ?, 'open') ON CONFLICT(media_group_id) DO UPDATE SET item_count = item_count + 1, last_at = excluded.last_at",
           )
           .bind(gid, chatId, now, now),
-        // Membresía: `media` no tiene columna de grupo; el id sale del unique_id para tolerar carreras.
-        deps.db
-          .prepare(
-            "INSERT INTO event_log (id, ts, actor, type, severity, data) VALUES (?, ?, 'bot', ?, 'info', json_object('gid', ?, 'media_id', (SELECT id FROM media WHERE tg_file_unique_id = ?)))",
-          )
-          .bind(newMediaId(now), now, MEMBER_EVENT, gid, item.uniqueId),
+        // Membresía: la foto (nueva o repetida) queda marcada con su álbum; idempotente si el update se reentrega.
+        deps.db.prepare("UPDATE media SET media_group_id = ? WHERE tg_file_unique_id = ?").bind(gid, item.uniqueId),
       ]
     : [];
 
@@ -160,9 +157,9 @@ export async function ingestMedia(deps: MediaDeps, m: TgMessage): Promise<Ingest
     await putOriginal(deps.r2, r2Key, file.bytes, item.mime);
     const insert = deps.db
       .prepare(
-        "INSERT OR IGNORE INTO media (id, r2_key, kind, mime, bytes, width, height, duration_s, tg_file_unique_id, tg_small_file_id, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'inbox', ?)",
+        "INSERT OR IGNORE INTO media (id, r2_key, kind, mime, bytes, width, height, duration_s, tg_file_unique_id, tg_small_file_id, status, created_at, media_group_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'inbox', ?, ?)",
       )
-      .bind(mediaId, r2Key, item.kind, item.mime, file.bytes.byteLength, item.width ?? null, item.height ?? null, item.duration ?? null, item.uniqueId, item.smallFileId ?? null, now);
+      .bind(mediaId, r2Key, item.kind, item.mime, file.bytes.byteLength, item.width ?? null, item.height ?? null, item.duration ?? null, item.uniqueId, item.smallFileId ?? null, now, gid ?? null);
     const res = await deps.db.batch([insert, ...group]);
     if (res[0]!.meta.changes === 0) {
       // Otra entrega ganó la carrera por el mismo archivo: borramos el objeto huérfano.

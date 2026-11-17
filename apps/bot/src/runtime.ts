@@ -8,6 +8,7 @@ import {
   type SttProvider,
   type ToolHost,
 } from "@veki/core";
+import { alertEscalation } from "./admin/alerts";
 import { D1ConversationStore, isVersionConflict } from "./actions/conversation-store";
 import { attachMessage, d1ToolHost } from "./actions/pending";
 import { parseAllowlist, type Env } from "./env";
@@ -97,6 +98,8 @@ export async function deliver(env: Env, send: Sender, chatId: number, out: Agent
 export async function respond(env: Env, send: Sender, chatId: number, reply: TurnReply, updateId?: number): Promise<void> {
   if (reply.escalate) await logEvent(env, "agent.escalate", "warn", { update_id: updateId ?? null });
   await deliver(env, send, chatId, { texto: reply.texto, botones: reply.botones, pendingActionId: reply.pendingActionId });
+  // Aviso al admin (tope 1 cada 30 min, solo `update_id` si hay; nunca texto). Cubre updates y el flush de álbumes.
+  if (reply.escalate) await alertEscalation(env, updateId);
 }
 
 /** Un turno del agente + respuesta. Un error del turno se propaga (reintento); lo de enviar no. */

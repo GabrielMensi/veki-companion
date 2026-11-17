@@ -4,7 +4,7 @@ import type { Env } from "../env";
 import { isVersionConflict } from "../actions/conversation-store";
 import { logEvent } from "../queues";
 import { albumEventText } from "../jobs/album-flush";
-import { agentTurn, deliver, getRuntime, respond, telegramSender, type Sender } from "../runtime";
+import { deliver, getRuntime, respond, telegramSender, type Sender } from "../runtime";
 import { handleCallback, type CallbackDeps, type CallbackQuery } from "./callback";
 import { extractMedia, handleMediaMessage, type MediaDeps, type TgMessage } from "./media";
 import { runTurn } from "./text";
@@ -82,7 +82,8 @@ export async function handleUpdateMessage(msg: { update_id?: number; update?: un
           const unique = extractMedia(m)!.uniqueId;
           const row = await env.DB.prepare("SELECT id FROM media WHERE tg_file_unique_id = ?").bind(unique).first<{ id: string }>();
           if (row) {
-            await agentTurn(env, chatId!, albumEventText([row.id]), { updateId: msg.update_id, send });
+            const reply = await runTurn(getRuntime(env), { chatId: chatId!, text: albumEventText([row.id]) });
+            await respond(env, send, chatId!, reply, msg.update_id);
           }
         }
         return;

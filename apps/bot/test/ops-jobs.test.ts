@@ -1,8 +1,8 @@
 import { env } from "cloudflare:test";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BACKUP_TABLES, backupKey, runBackup, shouldKeep, type BackupBucket, type BackupFile } from "../src/jobs/backup";
 import { runPurge } from "../src/jobs/purge";
-import { handleCron, CRON_DAILY } from "../src/cron";
+import { handleCron, CRON_DAILY, CRON_EVERY_15_MIN } from "../src/cron";
 import type { Env } from "../src/env";
 
 // Datos inventados. El bucket es el R2 local del pool de Workers.
@@ -97,5 +97,47 @@ describe("cron diario", () => {
     await handleCron(CRON_DAILY, broken, NOW + 1);
     expect(await count("SELECT COUNT(*) AS n FROM event_log WHERE type = 'cron.step_failed'")).toBe(1);
     expect(await count("SELECT COUNT(*) AS n FROM event_log WHERE type = 'purge.done'")).toBe(2);
+  });
+});
+
+describe("cron cada 15 min", () => {
+  const ADMIN = 31337;
+  const full = () => ({ DB: e.DB, MEDIA: e.MEDIA, TELEGRAM_BOT_TOKEN: "t", ALLOWED_CHAT_IDS: `1:owner,${ADMIN}:admin`, DEPLOY_HOOK_URL: "https://hook.test/deploy" }) as unknown as Env;
+  const realFetch = globalThis.fetch;
+  let calls: { url: string; body: any }[] = [];
+  beforeEach(async () => {
+    calls = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({ url: String(input), body: init?.body && typeof init.body === "string" && init.body.startsWith("{") ? JSON.parse(init.body) : null });
+      return Response.json({ ok: true, result: { message_id: 1 } });
+    }) as typeof fetch;
+    await run("DELETE FROM settings WHERE key LIKE 'alert_last:%'");
+    await run("DELETE FROM site_state");
+    await run("INSERT INTO site_state (id, dirty_since, last_build_at) VALUES (1, NULL, NULL)");
+  });
+  afterEach(() => void (globalThis.fetch = realFetch));
+
+  it("*/15: ejecuta scanAlerts (avisa al admin de un error reciente) y mantiene la reconstruccion", async () => {
+    await run("INSERT INTO event_log (id, ts, actor, type, severity) VALUES ('e1', ?, 'bot', 'x', 'error')", NOW - 60_000);
+    await run("UPDATE site_state SET dirty_since = ? WHERE id = 1", NOW - 3_600_000);
+    await handleCron(CRON_EVERY_15_MIN, full(), NOW);
+    const toAdmin = calls.filter((c) => c.url.includes("sendMessage") && c.body?.chat_id === ADMIN);
+    expect(toAdmin).toHaveLength(1);
+    expect(calls.filter((c) => c.url === "https://hook.test/deploy")).toHaveLength(1); // la reconstruccion sigue andando
+  });
+
+  it("*/15 respeta el tope de 30 min: una segunda pasada a los 15 min no repite la alerta", async () => {
+    await run("INSERT INTO event_log (id, ts, actor, type, severity) VALUES ('e2', ?, 'bot', 'x', 'error')", NOW - 60_000);
+    await handleCron(CRON_EVERY_15_MIN, full(), NOW);
+    await handleCron(CRON_EVERY_15_MIN, full(), NOW + 15 * 60_000);
+    expect(calls.filter((c) => c.url.includes("sendMessage"))).toHaveLength(1);
+  });
+
+  it("*/15: si scanAlerts falla queda en event_log y la reconstruccion igual corrio", async () => {
+    await run("UPDATE site_state SET dirty_since = ? WHERE id = 1", NOW - 3_600_000);
+    const broken = { ...full(), DB: new Proxy(e.DB, { get: (t, k) => (k === "prepare" ? (sql: string) => (sql.includes("severity = 'error'") ? { bind: () => ({ first: async () => { throw new Error("boom"); } }) } : t.prepare(sql)) : (t as any)[k]) }) } as unknown as Env;
+    await handleCron(CRON_EVERY_15_MIN, broken, NOW);
+    expect(calls.filter((c) => c.url === "https://hook.test/deploy")).toHaveLength(1);
+    expect(await count("SELECT COUNT(*) AS n FROM event_log WHERE type = 'cron.step_failed'")).toBe(1);
   });
 });

@@ -4,8 +4,6 @@ import { handlePublic, type PublicEnv } from "./public";
 import { handleBatch, type MessageBatchLike } from "./queues";
 import { handleWebhook } from "./webhook";
 
-export const APP_NAME = "@veki/bot";
-
 /** Forma mínima del evento `scheduled` de Workers (sin depender de @cloudflare/workers-types). */
 export interface ScheduledControllerLike {
   cron: string;

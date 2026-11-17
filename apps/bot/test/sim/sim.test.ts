@@ -11,10 +11,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import worker from "../../src/index";
 import type { Env } from "../../src/env";
 import { handleBatch, type QueueMessageLike } from "../../src/queues";
-import { handleAlbumFlush } from "../../src/jobs/album-flush";
+import { handleAlbumFlush, setAgentEntry } from "../../src/jobs/album-flush";
 import { D1ConversationStore } from "../../src/actions/conversation-store";
 import { d1ToolHost } from "../../src/actions/pending";
-import { setRuntimeOverride } from "../../src/runtime";
+import { albumEntry, setRuntimeOverride } from "../../src/runtime";
 import { FakeChatProvider, FakeSttProvider, copy, copyAcciones } from "@veki/core";
 import { createStubBotApi, type BotApiError } from "./stub-bot-api";
 import mediaSingle from "./fixtures/media-single.json";
@@ -309,4 +309,96 @@ describe("simulador: aserciones profundas (consumidor real, proveedores fake)", 
       await check!(run);
     });
   }
+});
+
+describe("simulador: escalacion al admin (2 malentendidos seguidos)", () => {
+  const ADMIN = 9001;
+  const SECRET_TEXT = "texto-privado-de-prueba";
+  const confusedChat = () =>
+    new FakeChatProvider([
+      () => ({ text: null, toolCalls: [{ id: "c1", name: "buscar_productos", arguments: { consulta: "x" } }], usage: { tokensIn: 1, tokensOut: 1 } }),
+    ]);
+  const textUpdate = (update_id: number) => ({
+    update_id,
+    message: { message_id: update_id, date: 0, chat: { id: CHAT_ID, type: "private" }, from: { id: CHAT_ID, is_bot: false, first_name: "Prueba" }, text: SECRET_TEXT },
+  });
+
+  async function runUpdates(ids: number[]) {
+    const sent: Sent[] = [];
+    const testEnv = { ...makeEnv(sent), ALLOWED_CHAT_IDS: `${CHAT_ID}:owner,${ADMIN}:admin` } as Env;
+    setRuntimeOverride((e) => ({ chat: confusedChat(), stt: new FakeSttProvider([{ text: "x", lowConfidence: false }]), store: new D1ConversationStore(e.DB), host: d1ToolHost(e) }));
+    const botApi = createStubBotApi();
+    const restore = botApi.install();
+    try {
+      for (const id of ids) expect((await worker.fetch(post(textUpdate(id)), testEnv)).status).toBe(200);
+      await handleBatch(
+        { queue: "q-updates", messages: sent.map((body) => ({ body, attempts: 1, ack: () => {}, retry: () => {} }) as QueueMessageLike) },
+        testEnv,
+      );
+      return botApi.calls.filter((c) => c.method === "sendMessage").map((c) => ({ chat: c.payload.chat_id as number, text: String(c.payload.text) }));
+    } finally {
+      restore();
+    }
+  }
+
+  beforeEach(async () => {
+    await db.prepare("DELETE FROM settings WHERE key LIKE 'alert_last:%'").run();
+    await db.prepare("DELETE FROM conversations").run();
+  });
+
+  it("el admin recibe un aviso con el update_id y sin el texto de la usuaria", async () => {
+    const out = await runUpdates([5001, 5002]);
+    const toAdmin = out.filter((m) => m.chat === ADMIN);
+    expect(toAdmin).toHaveLength(1);
+    expect(toAdmin[0]!.text).toContain("5002");
+    expect(toAdmin[0]!.text).not.toContain(SECRET_TEXT);
+    // La usuaria ve el "no entendi" y luego los atajos; ningun mensaje de ella va al admin.
+    expect(out.filter((m) => m.chat === CHAT_ID).map((m) => m.text)).toEqual([copy.noEntendi, copy.atajosTexto]);
+    expect(await count("event_log", "type='agent.escalate'")).toBe(1);
+    expect(JSON.stringify((await db.prepare("SELECT data FROM event_log WHERE type='agent.escalate'").first())!)).not.toContain(SECRET_TEXT);
+  });
+
+  it("tope de 1 aviso cada 30 min: una segunda escalacion seguida no vuelve a avisar", async () => {
+    const out = await runUpdates([5011, 5012, 5013, 5014]);
+    expect(await count("event_log", "type='agent.escalate'")).toBe(2);
+    expect(out.filter((m) => m.chat === ADMIN)).toHaveLength(1);
+  });
+
+  it("sin chat admin configurado la escalacion igual queda en event_log y la usuaria recibe los atajos", async () => {
+    const sent: Sent[] = [];
+    const testEnv = makeEnv(sent); // solo owner
+    setRuntimeOverride((e) => ({ chat: confusedChat(), stt: new FakeSttProvider([{ text: "x", lowConfidence: false }]), store: new D1ConversationStore(e.DB), host: d1ToolHost(e) }));
+    const botApi = createStubBotApi();
+    const restore = botApi.install();
+    try {
+      for (const id of [5021, 5022]) await worker.fetch(post(textUpdate(id)), testEnv);
+      await handleBatch({ queue: "q-updates", messages: sent.map((body) => ({ body, attempts: 1, ack: () => {}, retry: () => {} }) as QueueMessageLike) }, testEnv);
+      const to = botApi.calls.filter((c) => c.method === "sendMessage").map((c) => c.payload.chat_id);
+      expect(to.every((c) => c === CHAT_ID)).toBe(true);
+      expect(await count("event_log", "type='agent.escalate'")).toBe(1);
+    } finally {
+      restore();
+    }
+  });
+  it("album.flush: si el agente escala tambien avisa al admin (sin texto, con el mismo tope de 30 min)", async () => {
+    setAgentEntry(albumEntry);
+    const testEnv = { ...makeEnv([]), ALLOWED_CHAT_IDS: `${CHAT_ID}:owner,${ADMIN}:admin` } as Env;
+    setRuntimeOverride((e) => ({ chat: confusedChat(), stt: new FakeSttProvider([{ text: "x", lowConfidence: false }]), store: new D1ConversationStore(e.DB), host: d1ToolHost(e) }));
+    const botApi = createStubBotApi();
+    const restore = botApi.install();
+    try {
+      for (const gid of ["ga-1", "ga-2", "ga-3", "ga-4"]) {
+        await db.prepare("INSERT INTO inbox_groups (media_group_id, chat_id, item_count, first_at, last_at, status) VALUES (?, ?, 1, 1, 1, 'open')").bind(gid, CHAT_ID).run();
+        expect(await handleAlbumFlush({ gid }, testEnv, Date.now() + 60_000)).toBe("delivered");
+      }
+      const out = botApi.calls.filter((c) => c.method === "sendMessage").map((c) => ({ chat: c.payload.chat_id as number, text: String(c.payload.text) }));
+      expect(await count("event_log", "type='agent.escalate'")).toBe(2); // 2 malentendidos por escalacion: turnos 2 y 4
+      const toAdmin = out.filter((m) => m.chat === ADMIN);
+      expect(toAdmin).toHaveLength(1); // tope: la segunda escalacion no repite
+      expect(toAdmin[0]!.text).not.toMatch(/media_ids|foto/);
+    } finally {
+      restore();
+      setAgentEntry(albumEntry);
+    }
+  });
 });

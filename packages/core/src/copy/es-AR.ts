@@ -162,3 +162,9 @@ export const copyAdmin = {
       ...(r.pausados.length ? [`• Avisos pausados por falta de respuesta: ${r.pausados.join(", ")}`] : []),
     ].join("\n"),
 };
+
+// ── CLEANUP: aviso al admin por malentendidos (sin contenido del mensaje) ───
+export const copyAdminEscalacion = {
+  malentendidos: (updateId: number | undefined) =>
+    `Alerta: dos malentendidos seguidos en la conversación${updateId === undefined ? "" : ` (mensaje ${updateId})`}. Mirá /log.`,
+};

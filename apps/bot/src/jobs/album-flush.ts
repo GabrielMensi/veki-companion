@@ -42,11 +42,15 @@ export async function handleAlbumFlush(msg: { gid?: unknown }, env: Env, now: nu
   }
 
   const group = await db.prepare("SELECT chat_id FROM inbox_groups WHERE media_group_id=?").bind(gid).first<{ chat_id: number }>();
-  const rows = await db
-    .prepare("SELECT json_extract(data, '$.media_id') AS media_id FROM event_log WHERE type=? AND json_extract(data, '$.gid')=? ORDER BY ts, rowid")
-    .bind(MEMBER_EVENT, gid)
-    .all<{ media_id: string | null }>();
-  const media_ids = [...new Set(rows.results.map((r) => r.media_id).filter((x): x is string => !!x))];
+  // Álbumes nuevos: columna `media.media_group_id`. Álbumes anteriores a la migración 0002: filas legacy de event_log.
+  const [cur, legacy] = await Promise.all([
+    db.prepare("SELECT id FROM media WHERE media_group_id=? ORDER BY created_at, rowid").bind(gid).all<{ id: string }>(),
+    db
+      .prepare("SELECT json_extract(data, '$.media_id') AS media_id FROM event_log WHERE type=? AND json_extract(data, '$.gid')=? ORDER BY ts, rowid")
+      .bind(MEMBER_EVENT, gid)
+      .all<{ media_id: string | null }>(),
+  ]);
+  const media_ids = [...new Set([...cur.results.map((r) => r.id), ...legacy.results.map((r) => r.media_id).filter((x): x is string => !!x)])];
   try {
     await entry({ chatId: group!.chat_id, media_ids }, env);
   } catch (e) {
