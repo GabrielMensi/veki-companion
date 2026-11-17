@@ -1,4 +1,5 @@
 import { copy, type Boton } from "../copy/es-AR";
+import { isProviderError } from "../providers/errors";
 import type { ChatProvider, Msg } from "../providers/types";
 import { MAX_BOTONES, MAX_ETIQUETA, MAX_TEXTO, toolDefs, toolSchemas, type ToolName } from "../tools/defs";
 import { runTool, type ToolHost } from "../tools/index";
@@ -97,6 +98,7 @@ export async function runAgent(
   const histLen = deps.historyLength ?? (limits as { historyLength?: number }).historyLength ?? MAX_HISTORY;
   const messages: Msg[] = [...trimHistory(args.history, histLen), { role: "user", content: input.text } as Msg];
   let regenerated = false;
+  let repaired = false;
   let output: AgentOutput | null = null;
   let calls = 0;
   let tokensIn = 0;
@@ -105,7 +107,18 @@ export async function runAgent(
   while (!output && calls < maxCalls) {
     calls++;
     const system = buildSystem({ state, catalogSummary: deps.catalogSummary, lowConfidenceVoice: input.lowConfidenceVoice, pendingSummary: pendingSummary(state, args.history) });
-    const res = await deps.chat.complete({ system, messages, tools: toolDefs });
+    let res;
+    try {
+      res = await deps.chat.complete({ system, messages, tools: toolDefs });
+    } catch (e) {
+      // El modelo armó mal una llamada a herramienta (todas las cadenas fallaron así): UN reintento con una pista.
+      if (isProviderError(e) && e.kind === "bad_output" && !repaired) {
+        repaired = true;
+        messages.push({ role: "user", content: "(sistema) La llamada anterior a la herramienta no era válida. Repetila con los argumentos justos: sin campos vacíos ni null; los opcionales, omitilos." });
+        continue;
+      }
+      throw e;
+    }
     tokensIn += res.usage.tokensIn;
     tokensOut += res.usage.tokensOut;
 

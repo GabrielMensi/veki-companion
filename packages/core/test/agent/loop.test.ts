@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FakeChatProvider } from "../../src/providers";
+import { FakeChatProvider, ProviderError } from "../../src/providers";
 import { copy, emptyState, runAgent, nextMissingField, applyDraftUpdate, type AgentState } from "../../src";
 import { call, FakeHost, say, turn } from "./helpers";
 
@@ -178,5 +178,21 @@ describe("orden de herramientas en una misma respuesta", () => {
     expect(res.output.texto).toBe("Tenés una Riñonera Girasol.");
     expect(res.llmCalls).toBe(2);
     expect(chat.requests).toHaveLength(2);
+  });
+});
+
+describe("llamada a herramienta mal armada por el modelo", () => {
+  it("bad_output: un reintento con pista y sigue", async () => {
+    const { chat, p } = run([new ProviderError("bad_output", "x", { status: 400, code: "tool_use_failed" }), turn(call("deshacer", {}))]);
+    const res = await p;
+    expect(res.output.pendingActionId).toBe("pa1");
+    expect(res.llmCalls).toBe(2);
+    expect(chat.requests).toHaveLength(2);
+    expect(JSON.stringify(chat.requests[1]!.messages)).toContain("no era válida");
+  });
+
+  it("si vuelve a fallar, la excepción sube (la cola reintenta)", async () => {
+    const e = new ProviderError("bad_output", "x", { status: 400, code: "tool_use_failed" });
+    await expect(run([e, e]).p).rejects.toBe(e);
   });
 });

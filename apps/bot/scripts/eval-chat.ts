@@ -172,7 +172,7 @@ async function runScenario(s: EvalScenario, key: string, pauseMs: number, t: Tot
     } catch (e) {
       rec.take();
       // Solo la clase del error (nunca su mensaje: puede traer cuerpo de la respuesta).
-      const kind = isProviderError(e) ? `${e.kind}${e.status ? ` ${e.status}` : ""}` : "error interno";
+      const kind = isProviderError(e) ? `${e.kind}${e.status ? ` HTTP ${e.status}` : ""}${e.code ? ` código ${e.code}` : ""}` : "error interno";
       console.log(`  turno ${i + 1}: sin respuesta del proveedor (${kind}) -> FAIL`);
       t.total += s.turns.length - i - 1;
       t.aborted = isProviderError(e) && e.kind === "rate_limit";

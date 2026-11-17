@@ -130,7 +130,7 @@ const descriptions: Record<ToolName, string> = {
   cancelar_feria: "Cancela una feria.",
   pedir_contenido: "Encarga un flyer, carrusel o reel.",
   posponer_aviso: "Pospone o apaga un aviso.",
-  deshacer: "Obligatoria cuando pide deshacer, volver atrás o anular: deshace la última acción (o la indicada).",
+  deshacer: "Obligatoria cuando pide deshacer, volver atrás o anular. Sin argumentos deshace la última acción: no mandes accion_id salvo que ella indique una.",
 };
 
 export const READ_TOOLS = (Object.keys(toolKinds) as ToolName[]).filter((n) => toolKinds[n] === "read");
