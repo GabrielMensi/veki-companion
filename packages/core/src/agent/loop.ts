@@ -181,7 +181,8 @@ export async function runAgent(
         deps.host,
         { chatId: input.chatId, draft: state.draft, awaitingActionId: state.awaiting?.pending_action_id },
         name,
-        tc.arguments,
+        // `deshacer` no lleva argumentos para el modelo: si inventa un id, se ignora (siempre la última acción).
+        name === "deshacer" ? {} : tc.arguments,
       );
       if (outcome.kind === "pending") {
         output = { texto: outcome.preview, botones: copy.botonesAccion(outcome.actionId), pendingActionId: outcome.actionId };

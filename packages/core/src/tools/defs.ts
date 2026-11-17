@@ -84,6 +84,7 @@ export const toolSchemas = {
     media_ids: z.array(id).optional(),
   }),
   posponer_aviso: z.object({ tipo_aviso: z.string().min(1), hasta: z.enum(["en_3h", "manana", "nunca"]) }),
+  /** El ejecutor acepta un id (comando de admin, botones); al modelo NO se le muestra: `modelParameters` lo oculta. */
   deshacer: z.object({ accion_id: id.optional() }),
 } as const;
 
@@ -130,7 +131,7 @@ const descriptions: Record<ToolName, string> = {
   cancelar_feria: "Cancela una feria.",
   pedir_contenido: "Encarga un flyer, carrusel o reel.",
   posponer_aviso: "Pospone o apaga un aviso.",
-  deshacer: "Obligatoria cuando pide deshacer, volver atrás o anular. Sin argumentos deshace la última acción: no mandes accion_id salvo que ella indique una.",
+  deshacer: "Obligatoria cuando pide deshacer, volver atrás o anular. No lleva argumentos: deshace la última acción.",
 };
 
 export const READ_TOOLS = (Object.keys(toolKinds) as ToolName[]).filter((n) => toolKinds[n] === "read");
@@ -153,5 +154,5 @@ function jsonSchema(schema: z.ZodType): Record<string, unknown> {
 export const toolDefs: ToolDef[] = (Object.keys(toolSchemas) as ToolName[]).map((name) => ({
   name,
   description: descriptions[name],
-  parameters: jsonSchema(toolSchemas[name]),
+  parameters: name === "deshacer" ? { type: "object", properties: {} } : jsonSchema(toolSchemas[name]),
 }));
