@@ -4,10 +4,10 @@ import { MAX_BOTONES, MAX_ETIQUETA, MAX_TEXTO, toolDefs, toolSchemas, type ToolN
 import { runTool, type ToolHost } from "../tools/index";
 import { applyDraftUpdate, nextMissingField } from "./draft";
 import { buildSystem } from "./prompt";
-import { trimHistory, type AgentState, type HistoryItem } from "./state";
+import { MAX_HISTORY, pendingSummary, trimHistory, type AgentState, type HistoryItem } from "./state";
 
-/** Tope de llamadas al LLM por update (subrequests, docs/02 §2.1/§3.3). */
-export const MAX_LLM_CALLS = 4;
+/** Tope por defecto de llamadas al LLM por update (docs/02 §2.1/§3.3; bajado de 4 a 3 por R3). Configurable: `AgentDeps.maxLlmCalls`. */
+export const MAX_LLM_CALLS = 3;
 
 export type AgentOutput = {
   texto: string;
@@ -21,6 +21,10 @@ export type AgentDeps = {
   host: ToolHost;
   /** Resumen del catálogo para el contexto (≤ 50 productos). */
   catalogSummary?: string;
+  /** Tope de llamadas al LLM por update (settings `chat.tool_call_cap`). */
+  maxLlmCalls?: number;
+  /** Mensajes de historial que se reenvían y guardan (settings `chat.history_length`). */
+  historyLength?: number;
 };
 
 export type AgentInput = {
@@ -79,7 +83,7 @@ function coerce(obj: { texto?: unknown; botones?: unknown }): AgentOutput | unde
 }
 
 /**
- * Un update de la usuaria → una salida. Hasta 4 llamadas al LLM; `responder` es el único canal de salida.
+ * Un update de la usuaria → una salida. Hasta 3 llamadas al LLM; `responder` es el único canal de salida.
  * Si el proveedor falla en todas las cadenas, la excepción sube (la cola reintenta el update): no se guarda nada.
  */
 export async function runAgent(
@@ -88,16 +92,19 @@ export async function runAgent(
 ): Promise<AgentResult> {
   const { input } = args;
   let state = args.state;
-  const messages: Msg[] = [...args.history, { role: "user", content: input.text } as Msg];
+  const limits = deps.chat.agentLimits ? await deps.chat.agentLimits().catch(() => ({})) : {};
+  const maxCalls = deps.maxLlmCalls ?? (limits as { maxLlmCalls?: number }).maxLlmCalls ?? MAX_LLM_CALLS;
+  const histLen = deps.historyLength ?? (limits as { historyLength?: number }).historyLength ?? MAX_HISTORY;
+  const messages: Msg[] = [...trimHistory(args.history, histLen), { role: "user", content: input.text } as Msg];
   let regenerated = false;
   let output: AgentOutput | null = null;
   let calls = 0;
   let tokensIn = 0;
   let tokensOut = 0;
 
-  while (!output && calls < MAX_LLM_CALLS) {
+  while (!output && calls < maxCalls) {
     calls++;
-    const system = buildSystem({ state, catalogSummary: deps.catalogSummary, lowConfidenceVoice: input.lowConfidenceVoice });
+    const system = buildSystem({ state, catalogSummary: deps.catalogSummary, lowConfidenceVoice: input.lowConfidenceVoice, pendingSummary: pendingSummary(state, args.history) });
     const res = await deps.chat.complete({ system, messages, tools: toolDefs });
     tokensIn += res.usage.tokensIn;
     tokensOut += res.usage.tokensOut;
@@ -185,6 +192,6 @@ export async function runAgent(
     ...args.history,
     { role: "user", content: input.text },
     { role: "assistant", content: output.texto },
-  ]);
+  ], histLen);
   return { output, state, history, llmCalls: calls, misunderstood, escalate, tokensIn, tokensOut };
 }

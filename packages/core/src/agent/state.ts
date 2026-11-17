@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { draftSchema } from "./draft";
 
-export const MAX_HISTORY = 12;
+/** Default history items resent/stored (docs/02 §4.6 R3; configurable via settings `chat.history_length`). */
+export const MAX_HISTORY = 6;
 
 export const awaitingSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("edit"), pending_action_id: z.string() }),
@@ -40,8 +41,15 @@ export function parseHistory(json: string | null | undefined): HistoryItem[] {
   }
 }
 
-/** Últimos 12 mensajes (usuario + asistente). */
-export const trimHistory = (h: HistoryItem[]): HistoryItem[] => h.slice(-MAX_HISTORY);
+/** Últimos `max` mensajes (usuario + asistente). */
+export const trimHistory = (h: HistoryItem[], max: number = MAX_HISTORY): HistoryItem[] => h.slice(-max);
+
+/** Resumen corto de la acción pendiente: su vista previa es el último mensaje del asistente, que el recorte podría perder. */
+export function pendingSummary(state: AgentState, history: HistoryItem[]): string | undefined {
+  if (!state.awaiting) return undefined;
+  const last = [...history].reverse().find((m) => m.role === "assistant");
+  return last ? last.content.slice(0, 160) : undefined;
+}
 
 /** Lo llama quien ejecuta la acción (T18) cuando `crear_producto`/`crear_feria` se confirman. */
 export const clearDraft = (s: AgentState): AgentState => ({ ...s, draft: null, awaiting: null });

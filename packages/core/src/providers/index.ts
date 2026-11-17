@@ -6,3 +6,4 @@ export * from "./workersai-stt";
 export * from "./groq-chat";
 export * from "./gemini-chat";
 export * from "./fakes";
+export * from "./chat-config";
