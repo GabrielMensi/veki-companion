@@ -8,7 +8,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "db:migrate:local": "wrangler d1 migrations apply veki --local",
-    "test": "vitest run"
+    "test": "vitest run",
+    "eval:chat": "vite-node scripts/eval-chat.ts"
   },
   "dependencies": {
     "@veki/core": "*"
