@@ -28,3 +28,8 @@ max_concurrency = 1
 
 [[queues.consumers]]
 queue = "q-jobs"
+max_concurrency = 2
+
+# Secrets (wrangler secret): TELEGRAM_BOT_TOKEN, TG_WEBHOOK_SECRET. Locales en .dev.vars.
+[vars]
+ALLOWED_CHAT_IDS = ""  # "id:owner,id:admin"; se completa al desplegar
