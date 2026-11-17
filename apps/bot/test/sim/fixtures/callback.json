@@ -1,0 +1,53 @@
+[
+  {
+    "id": "callback-pa-yes",
+    "description": "Toque en \"Sí\" de una acción pendiente: callback_data pa:<id>:yes.",
+    "updates": [
+      {
+        "update_id": 1401,
+        "callback_query": {
+          "id": "fake-cb-1",
+          "from": { "id": 1001, "is_bot": false, "first_name": "Prueba" },
+          "message": { "message_id": 51, "date": 0, "chat": { "id": 1001, "type": "private" }, "text": "¿Lo confirmo?" },
+          "chat_instance": "fake-instance",
+          "data": "pa:fake-action-1:yes"
+        }
+      }
+    ],
+    "expect": { "rows": [{ "update_id": 1401, "kind": "callback_query" }] },
+    "deferred": { "owner": "T18", "note": "ejecuta la acción pendiente y responde el texto de confirmación (docs/02 §3.1)" }
+  },
+  {
+    "id": "callback-pa-yes-double-tap",
+    "description": "Doble toque en \"Sí\": Telegram manda dos updates con distintos update_id y la misma callback_data.",
+    "updates": [
+      {
+        "update_id": 1402,
+        "callback_query": {
+          "id": "fake-cb-2",
+          "from": { "id": 1001, "is_bot": false, "first_name": "Prueba" },
+          "message": { "message_id": 52, "date": 0, "chat": { "id": 1001, "type": "private" }, "text": "¿Lo confirmo?" },
+          "chat_instance": "fake-instance",
+          "data": "pa:fake-action-2:yes"
+        }
+      },
+      {
+        "update_id": 1403,
+        "callback_query": {
+          "id": "fake-cb-3",
+          "from": { "id": 1001, "is_bot": false, "first_name": "Prueba" },
+          "message": { "message_id": 52, "date": 0, "chat": { "id": 1001, "type": "private" }, "text": "¿Lo confirmo?" },
+          "chat_instance": "fake-instance",
+          "data": "pa:fake-action-2:yes"
+        }
+      }
+    ],
+    "expect": {
+      "rows": [
+        { "update_id": 1402, "kind": "callback_query" },
+        { "update_id": 1403, "kind": "callback_query" }
+      ]
+    },
+    "deferred": { "owner": "T18", "note": "el doble toque ejecuta una sola vez (UPDATE ... WHERE status='pending'); el segundo recibe la respuesta de ya confirmado" }
+  }
+]
