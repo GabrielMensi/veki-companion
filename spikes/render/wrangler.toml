@@ -1,0 +1,7 @@
+name = "veky-render-spike"
+main = "src/worker.ts"
+compatibility_date = "2025-01-01"
+workers_dev = false
+
+# Fonts are bundled as raw binary (no filesystem in Workers).
+rules = [{ type = "Data", globs = ["**/*.ttf"], fallthrough = true }]
