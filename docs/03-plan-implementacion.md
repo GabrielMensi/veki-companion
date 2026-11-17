@@ -211,6 +211,7 @@ flowchart LR
 - **Archivos:** `apps/bot/src/nudges/{engine.ts,rules.ts,quiet-hours.ts}`, `apps/bot/src/cron.ts` (parte de avisos), tests.
 - **Entradas:** reglas de `02 §3.6` (silencio, 1 por día, prioridades, nunca dos sin respuesta, `ignored_streak`, posponer, conversación activa), `02 §3.7`. Funciones puras con `now` inyectado.
 - **Hecho:** tabla de tests con fechas fijas que cubre cada regla; integración: cron con 2 avisos vencidos → sale solo el de mayor prioridad.
+- **Requisito:** el motor de avisos de la etapa 2 debe leer la clave de `settings` `nudges_paused` (escrita por el comando de admin `/pausa`) y las claves `snooze:<tipo>` (escritas por `posponer_aviso`).
 
 ### T34 — Catálogo de avisos
 - **Deps:** T31, T33 · **Ola:** 9 · **Modelo:** Sonnet (textos con tono + planificación).

@@ -204,6 +204,48 @@ describe("albums", () => {
     expect(events[0]!.media_ids).toHaveLength(2);
   });
 
+  it("album membership is written to media.media_group_id and read back from it (no event_log rows)", async () => {
+    const { deps } = setup();
+    const events: AlbumEvent[] = [];
+    setAgentEntry(async (ev) => void events.push(ev));
+    await sendAlbum(deps, "gcol", ["k1", "k2"]);
+    await ingestMedia(deps, photo("solo")); // suelta: sin grupo
+    const rows = await e.DB.prepare("SELECT id, media_group_id AS g FROM media ORDER BY created_at, id").all<{ id: string; g: string | null }>();
+    expect(rows.results.filter((r) => r.g === "gcol")).toHaveLength(2);
+    expect(rows.results.filter((r) => r.g === null)).toHaveLength(1);
+    expect((await e.DB.prepare("SELECT COUNT(*) AS n FROM event_log WHERE type = 'media.group_member'").first<{ n: number }>())!.n).toBe(0);
+    await handleAlbumFlush({ gid: "gcol" }, batchEnv([]), T0 + 3000);
+    expect([...events[0]!.media_ids].sort()).toEqual(rows.results.filter((r) => r.g === "gcol").map((r) => r.id).sort());
+  });
+
+  it("legacy album (pre-0002: membership only in event_log) is still delivered with all its photos", async () => {
+    const run = (sql: string, ...b: unknown[]) => e.DB.prepare(sql).bind(...b).run();
+    for (const id of ["m-old-1", "m-old-2"]) {
+      await run("INSERT INTO media (id, r2_key, kind, mime, tg_file_unique_id, status, created_at) VALUES (?, ?, 'photo', 'image/jpeg', ?, 'inbox', ?)", id, `orig/${id}.jpg`, `u-${id}`, T0);
+      await run("INSERT INTO event_log (id, ts, actor, type, severity, data) VALUES (?, ?, 'bot', 'media.group_member', 'info', json_object('gid', 'glegacy', 'media_id', ?))", `ev-${id}`, T0, id);
+    }
+    await run("INSERT INTO inbox_groups (media_group_id, chat_id, item_count, first_at, last_at, status) VALUES ('glegacy', ?, 2, ?, ?, 'open')", CHAT, T0, T0);
+    const events: AlbumEvent[] = [];
+    setAgentEntry(async (ev) => void events.push(ev));
+    expect(await handleAlbumFlush({ gid: "glegacy" }, batchEnv([]), T0 + 3000)).toBe("delivered");
+    expect(events[0]!.media_ids).toEqual(["m-old-1", "m-old-2"]);
+  });
+
+  it("an album mixing legacy members and column members lists each photo once", async () => {
+    const run = (sql: string, ...b: unknown[]) => e.DB.prepare(sql).bind(...b).run();
+    await run("INSERT INTO media (id, r2_key, kind, mime, tg_file_unique_id, status, created_at) VALUES ('m-leg', 'orig/m-leg.jpg', 'photo', 'image/jpeg', 'u-leg', 'inbox', ?)", T0);
+    await run("INSERT INTO event_log (id, ts, actor, type, severity, data) VALUES ('ev-leg', ?, 'bot', 'media.group_member', 'info', json_object('gid', 'gmix', 'media_id', 'm-leg'))", T0);
+    await run("INSERT INTO inbox_groups (media_group_id, chat_id, item_count, first_at, last_at, status) VALUES ('gmix', ?, 1, ?, ?, 'open')", CHAT, T0, T0);
+    const { deps } = setup();
+    await ingestMedia(deps, photo("late", "gmix"));
+    const events: AlbumEvent[] = [];
+    setAgentEntry(async (ev) => void events.push(ev));
+    await handleAlbumFlush({ gid: "gmix" }, batchEnv([]), T0 + 3000);
+    expect(events[0]!.media_ids).toHaveLength(2);
+    expect(events[0]!.media_ids).toContain("m-leg");
+    expect(new Set(events[0]!.media_ids).size).toBe(2);
+  });
+
   it("delivery failure reopens the group so the queue retry wins again", async () => {
     const { deps } = setup();
     await sendAlbum(deps, "g4", ["m1"]);

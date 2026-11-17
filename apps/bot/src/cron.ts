@@ -102,6 +102,17 @@ export async function handleCron(cron: string, env: RebuildEnv | Env, now = Date
   if (cron === CRON_EVERY_15_MIN) {
     // TODO(T17): despachar nudges vencidos. TODO(T19): timeouts de content_jobs.
     await rebuildIfDirty(env, now);
+    // Las alertas también corren cada 15 min (tope de 1 por tipo cada 30 min): un paso que falla se registra y no rompe el cron.
+    const full = env as Env;
+    if (full.TELEGRAM_BOT_TOKEN !== undefined) {
+      try {
+        await scanAlerts(full, now);
+      } catch (e) {
+        await full.DB.prepare("INSERT INTO event_log (id, ts, actor, type, severity, data) VALUES (?, ?, 'cron', 'cron.step_failed', 'error', ?)")
+          .bind(ulid(now), now, JSON.stringify({ step: "alerts", error: e instanceof Error ? e.name : "unknown" }))
+          .run();
+      }
+    }
   } else if (cron === CRON_DAILY) {
     // TODO(T17): planificar nudges.
     // T22: cada paso es independiente; uno que falla se registra y no frena a los demás.

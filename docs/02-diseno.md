@@ -132,10 +132,12 @@ CREATE TABLE media (
   position INTEGER,                       -- orden en la web; 0 = portada
   alt_text TEXT,
   status TEXT NOT NULL DEFAULT 'inbox',   -- inbox|attached|discarded
-  created_at INTEGER NOT NULL
+  created_at INTEGER NOT NULL,
+  media_group_id TEXT                     -- álbum de Telegram al que pertenece (migración 0002); NULL = suelta
 );
 CREATE INDEX idx_media_product ON media(product_id, position);
 CREATE INDEX idx_media_status ON media(status, created_at);
+CREATE INDEX idx_media_group ON media(media_group_id);
 
 -- Agenda
 CREATE TABLE fairs (
@@ -266,7 +268,7 @@ El spike agrupaba con un `setTimeout` en memoria (`spikes/telegram/src/handlers.
 
 Cada mensaje del álbum genera un flush; solo uno gana gracias al `UPDATE` condicional (atómico en SQLite). Costo: ~4 escrituras por foto. La ventana de 2 s es la del spike (`ALBUM_DEBOUNCE_MS`). La granularidad mínima de `delaySeconds` es 1 s, así que la respuesta llega 3–5 s después de la última foto: aceptable.
 
-Hasta que exista la columna `media.media_group_id` (migración planificada), la pertenencia de cada foto a su álbum se guarda como filas de `event_log` de tipo `media.group_member`.
+La pertenencia de cada foto a su álbum vive en `media.media_group_id` (migración `0002`). Los álbumes creados antes de esa migración guardaron la pertenencia como filas de `event_log` de tipo `media.group_member`; el flush las sigue leyendo (sin duplicar ids) para esos grupos.
 
 Como `q-updates` corre con concurrencia 1 (`max_concurrency = 1`, [consumer concurrency](https://developers.cloudflare.com/queues/configuration/consumer-concurrency/)), los updates de ella se procesan en orden y `conversations` no tiene escrituras concurrentes del mismo chat. Igual se usa `version` (bloqueo optimista) porque `q-jobs` también escribe estado al entregar resultados.
 

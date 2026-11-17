@@ -1,13 +1,14 @@
 import { copy } from "@veki/core";
+import { alertEscalation } from "../admin/alerts";
 import { handleAdminCommand } from "../admin/commands";
 import type { Env } from "../env";
 import { isVersionConflict } from "../actions/conversation-store";
 import { logEvent } from "../queues";
 import { albumEventText } from "../jobs/album-flush";
-import { agentTurn, deliver, getRuntime, respond, telegramSender, type Sender } from "../runtime";
+import { deliver, getRuntime, respond, telegramSender, type Sender } from "../runtime";
 import { handleCallback, type CallbackDeps, type CallbackQuery } from "./callback";
 import { extractMedia, handleMediaMessage, type MediaDeps, type TgMessage } from "./media";
-import { runTurn } from "./text";
+import { runTurn, type TurnReply } from "./text";
 import { handleVoice, telegramDownloader, type AudioDownloader } from "./voice";
 
 type TgUpdateMessage = TgMessage & {
@@ -34,6 +35,12 @@ export function classifyUpdate(u: TgUpdate): UpdateKind {
   if (m.voice?.file_id) return "voice";
   if (extractMedia(m)) return "media";
   return "unsupported";
+}
+
+/** Responde el turno y, si escaló (2 malentendidos), avisa al admin con el `update_id` (sin texto). `event_log` lo anota `respond`. */
+async function respondAndAlert(env: Env, send: Sender, chatId: number, reply: TurnReply, updateId?: number): Promise<void> {
+  await respond(env, send, chatId, reply, updateId);
+  if (reply.escalate) await alertEscalation(env, updateId);
 }
 
 /**
@@ -63,7 +70,7 @@ export async function handleUpdateMessage(msg: { update_id?: number; update?: un
           return;
         }
         const reply = await runTurn(getRuntime(env), { chatId: chatId!, text: update.message!.text!.trim() });
-        await respond(env, send, chatId!, reply, msg.update_id);
+        await respondAndAlert(env, send, chatId!, reply, msg.update_id);
         return;
       }
       case "voice": {
@@ -71,7 +78,7 @@ export async function handleUpdateMessage(msg: { update_id?: number; update?: un
         const download = deps.download ?? telegramDownloader(env.TELEGRAM_BOT_TOKEN);
         const m = update.message!;
         const reply = await handleVoice({ ...rt, download }, { chatId: chatId!, fileId: m.voice!.file_id, mime: m.voice!.mime_type });
-        await respond(env, send, chatId!, reply, msg.update_id);
+        await respondAndAlert(env, send, chatId!, reply, msg.update_id);
         return;
       }
       case "media": {
@@ -82,7 +89,8 @@ export async function handleUpdateMessage(msg: { update_id?: number; update?: un
           const unique = extractMedia(m)!.uniqueId;
           const row = await env.DB.prepare("SELECT id FROM media WHERE tg_file_unique_id = ?").bind(unique).first<{ id: string }>();
           if (row) {
-            await agentTurn(env, chatId!, albumEventText([row.id]), { updateId: msg.update_id, send });
+            const reply = await runTurn(getRuntime(env), { chatId: chatId!, text: albumEventText([row.id]) });
+            await respondAndAlert(env, send, chatId!, reply, msg.update_id);
           }
         }
         return;

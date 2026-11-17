@@ -45,6 +45,7 @@ export const tables = {
     tg_file_unique_id: nullable(z.string()), tg_small_file_id: nullable(z.string()),
     product_id: nullable(id), variant_id: nullable(id), position: nullable(int.nonnegative()),
     alt_text: nullable(z.string()), status: mediaStatus, created_at: ms,
+    media_group_id: nullable(z.string().min(1)),
   }),
   fairs: z.object({
     id, name: z.string().min(1), place: z.string().min(1),

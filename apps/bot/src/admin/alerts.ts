@@ -1,4 +1,4 @@
-import { copyAdmin } from "@veki/core";
+import { copyAdmin, copyAdminEscalacion } from "@veki/core";
 import type { D1DatabaseLike } from "../env";
 import { adminWarning } from "../provider-ports";
 import type { Env } from "../env";
@@ -65,4 +65,16 @@ export async function scanAlerts(env: Env, now: number, send?: AlertSend): Promi
     sent.push("proveedor_cooldown");
   }
   return sent;
+}
+
+/**
+ * Escalación del agente (docs/02 §3.4): avisa a los chats admin, con el tope de 1 cada 30 min por tipo.
+ * Solo lleva el `update_id`, nunca el texto. Un fallo al avisar no rompe el turno (ya quedó en `event_log`).
+ */
+export async function alertEscalation(env: Env, updateId: number | undefined, now: number = Date.now(), send?: AlertSend): Promise<boolean> {
+  try {
+    return await sendAlert(env, "malentendidos", copyAdminEscalacion.malentendidos(updateId), now, send);
+  } catch {
+    return false;
+  }
 }
