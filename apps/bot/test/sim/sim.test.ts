@@ -3,15 +3,19 @@
 // con secret válido y chat permitido. Después se reproduce la cola `q-updates` con el consumidor real
 // (`handleBatch`). La Bot API está stubeada: se registran los métodos llamados.
 //
-// Lo que se afirma hoy: respuesta HTTP, filas en `updates` (D1), mensajes encolados, dedupe y que el
-// consumidor confirma cada mensaje. Las aserciones más profundas (respuestas, descargas a R2, flush de
-// álbumes, ejecución de acciones) quedan como `it.todo` hasta que su tarea dueña las complete.
+// El consumidor es el real (`handleBatch` -> dispatcher -> handlers). Proveedores de chat y voz son fakes
+// (`setRuntimeOverride`); la Bot API esta stubeada y R2/D1 son los del pool de Workers.
 
 import { env } from "cloudflare:test";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import worker from "../../src/index";
 import type { Env } from "../../src/env";
 import { handleBatch, type QueueMessageLike } from "../../src/queues";
+import { handleAlbumFlush } from "../../src/jobs/album-flush";
+import { D1ConversationStore } from "../../src/actions/conversation-store";
+import { d1ToolHost } from "../../src/actions/pending";
+import { setRuntimeOverride } from "../../src/runtime";
+import { FakeChatProvider, FakeSttProvider, copy, copyAcciones } from "@veki/core";
 import { createStubBotApi, type BotApiError } from "./stub-bot-api";
 import mediaSingle from "./fixtures/media-single.json";
 import mediaAlbums from "./fixtures/media-albums.json";
@@ -22,6 +26,9 @@ import callbacks from "./fixtures/callback.json";
 const SECRET = "sim-secret-123";
 const CHAT_ID = 1001;
 const db = (env as unknown as { DB: Env["DB"] }).DB;
+const r2 = (env as unknown as { MEDIA: R2Bucket }).MEDIA;
+const TABLES = ["updates", "event_log", "media", "inbox_groups", "conversations", "pending_actions", "fairs"];
+const AGENT_REPLY = "Dale, ya lo vi";
 
 type Sent = { type: string; update_id: number; update: unknown };
 type SimCase = {
@@ -33,6 +40,19 @@ type SimCase = {
   deferred: { owner: string; reply?: string; note: string };
 };
 
+/** Acciones pendientes que los callbacks de los fixtures esperan encontrar (ids inventados). */
+const seeds: Record<string, () => Promise<void>> = {
+  "callback-pa-yes": () => seedFeria("fake-action-1"),
+  "callback-pa-yes-double-tap": () => seedFeria("fake-action-2"),
+};
+async function seedFeria(id: string) {
+  const now = Date.now();
+  await db
+    .prepare("INSERT INTO pending_actions (id, chat_id, tool, args, preview, status, created_at, expires_at) VALUES (?, ?, 'crear_feria', ?, 'vista previa', 'pending', ?, ?)")
+    .bind(id, CHAT_ID, JSON.stringify({ nombre: "Feria del Parque", lugar: "Plaza", inicio: "2027-01-10T10:00", fin: "2027-01-10T18:00" }), now, now + 3_600_000)
+    .run();
+}
+
 const cases: SimCase[] = [
   ...(mediaSingle as unknown as SimCase[]),
   ...(mediaAlbums as unknown as SimCase[]),
@@ -43,12 +63,12 @@ const cases: SimCase[] = [
 // Los nombres de test van en ASCII (como el resto de tests del bot): el header MF-Vitest-Source no admite acentos.
 const ascii = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^\x20-\x7e]/g, "?");
 
-function makeEnv(sent: Sent[]): Env {
+function makeEnv(sent: Sent[], jobs: unknown[] = []): Env {
   return {
     DB: db,
-    MEDIA: null,
+    MEDIA: r2,
     Q_UPDATES: { send: async (m) => void sent.push(m as Sent) },
-    Q_JOBS: { send: async () => {} },
+    Q_JOBS: { send: async (m) => void jobs.push(m) },
     TELEGRAM_BOT_TOKEN: "sim-token",
     TG_WEBHOOK_SECRET: SECRET,
     ALLOWED_CHAT_IDS: `${CHAT_ID}:owner`,
@@ -69,11 +89,17 @@ async function count(table: string, where = "1=1") {
 
 /** Corre un caso completo: webhook por cada update, luego el consumidor sobre lo encolado. */
 async function simulate(c: SimCase) {
-  await db.prepare("DELETE FROM updates").run();
-  await db.prepare("DELETE FROM event_log").run();
+  for (const t of TABLES) await db.prepare(`DELETE FROM ${t}`).run();
+  await seeds[c.id]?.();
 
   const sent: Sent[] = [];
-  const testEnv = makeEnv(sent);
+  const jobs: { type?: string; gid?: string }[] = [];
+  const testEnv = makeEnv(sent, jobs);
+  const chat = new FakeChatProvider([
+    () => ({ text: null, toolCalls: [{ id: "c1", name: "responder", arguments: { texto: AGENT_REPLY } }], usage: { tokensIn: 1, tokensOut: 1 } }),
+  ]);
+  const stt = new FakeSttProvider([{ text: "quiero cargar una riñonera", lowConfidence: false }]);
+  setRuntimeOverride((e) => ({ chat, stt, store: new D1ConversationStore(e.DB), host: d1ToolHost(e) }));
   const botApi = createStubBotApi({ errors: c.botApi });
   const restore = botApi.install();
   try {
@@ -101,21 +127,27 @@ async function simulate(c: SimCase) {
       retry: () => void retried.push(i),
     }));
     await handleBatch({ queue: "q-updates", messages }, testEnv);
+    // Los `album.flush` encolados se corren con la hora adelantada (pasado el debounce de 2 s).
+    const flushes: string[] = [];
+    for (const j of jobs.filter((j) => j.type === "album.flush")) {
+      flushes.push(await handleAlbumFlush({ gid: j.gid }, testEnv, Date.now() + 60_000));
+    }
     const consumer = {
       acked: acked.length,
       retried: retried.length,
       unknownType: await count("event_log", "type='queue.unknown_type'"),
     };
-    return { webhook, consumer, unexpectedHosts: botApi.unexpected, botCalls: botApi.calls };
+    return { webhook, consumer, flushes, chat, stt, unexpectedHosts: botApi.unexpected, botCalls: botApi.calls };
   } finally {
     restore();
+    setRuntimeOverride(null);
   }
 }
 
 beforeEach(async () => {
-  await db.prepare("DELETE FROM updates").run();
-  await db.prepare("DELETE FROM event_log").run();
+  for (const t of TABLES) await db.prepare(`DELETE FROM ${t}`).run();
 });
+afterEach(() => setRuntimeOverride(null));
 
 describe("simulador: stub de la Bot API", () => {
   it("registra metodos y payloads, y devuelve errores configurados", async () => {
@@ -177,14 +209,104 @@ describe("simulador: fixtures de updates", () => {
   }
 });
 
-// Aserciones profundas, pendientes de su tarea dueña (campo `deferred.owner` de cada fixture):
-//  - T16: texto y voz llegan al agente y producen respuesta (router de `update` en queues.ts sigue stub).
-//  - T17: medios (R2, `media`, álbumes con `album.flush`, getFile 400, tope de 20 MB, tipo no soportado).
-//  - T18: acciones pendientes (`pa:<id>:yes`, doble toque, vencimiento, cancelar).
-// Cuando una tarea complete su parte, convertir el `it.todo` en `it` con la aserción real.
-describe("simulador: aserciones pendientes", () => {
+type Run = Awaited<ReturnType<typeof simulate>>;
+const sentTexts = (run: Run) => run.botCalls.filter((c) => c.method === "sendMessage").map((c) => String(c.payload.text));
+const methods = (run: Run, m: string) => run.botCalls.filter((c) => c.method === m);
+// Lo ultimo que dijo la usuaria en cada llamada al LLM (la primera del turno).
+const agentTexts = (run: Run) => run.chat.requests.map((r) => [...r.messages].reverse().find((m) => m.role === "user")!.content as string);
+const mediaRows = async () => (await db.prepare("SELECT id, r2_key, kind, status FROM media ORDER BY created_at, id").all<{ id: string; r2_key: string; kind: string; status: string }>()).results;
+const inR2 = async (rows: { r2_key: string }[]) => Promise.all(rows.map(async (r) => (await r2.head(r.r2_key)) !== null));
+
+/** Foto/video suelto: un archivo en R2, una fila `media` en inbox y un unico turno del agente con su id. */
+async function expectSingleStored(run: Run, kind: "photo" | "video") {
+  const rows = await mediaRows();
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({ kind, status: "inbox" });
+  expect(await inR2(rows)).toEqual([true]);
+  expect(run.chat.requests).toHaveLength(1);
+  expect(agentTexts(run)[0]).toContain(rows[0]!.id);
+  expect(sentTexts(run)).toEqual([AGENT_REPLY]);
+}
+
+/** Album: todas las piezas en `media`, un solo flush entrega y el agente recibe UN evento con todos los ids. */
+async function expectAlbumDelivered(run: Run, members: number) {
+  const rows = await mediaRows();
+  expect(rows).toHaveLength(members);
+  expect(await inR2(rows)).toEqual(rows.map(() => true));
+  expect(run.flushes.filter((f) => f === "delivered")).toHaveLength(1); // un solo flush gana
+  expect(run.chat.requests).toHaveLength(1);
+  for (const r of rows) expect(agentTexts(run)[0]).toContain(r.id);
+  expect(sentTexts(run)).toEqual([AGENT_REPLY]); // no hay una respuesta por pieza
+}
+
+/** Demasiado pesado: no se guarda nada, responde pidiendo un clip y el agente no interviene. */
+async function expectTooBig(run: Run) {
+  expect(await mediaRows()).toHaveLength(0);
+  expect(methods(run, "downloadFile")).toHaveLength(0);
+  expect(sentTexts(run)).toHaveLength(1);
+  expect(sentTexts(run)[0]).toMatch(/clip|cortito/);
+  expect(run.chat.requests).toHaveLength(0);
+}
+
+const deep: Record<string, (run: Run) => Promise<void>> = {
+  "text-hola": async (run) => {
+    expect(agentTexts(run)).toEqual(["hola"]);
+    expect(sentTexts(run)).toEqual([AGENT_REPLY]);
+    expect(run.consumer.retried).toBe(0);
+  },
+  "voice-note": async (run) => {
+    expect(methods(run, "downloadFile")).toHaveLength(1);
+    expect(run.stt.calls).toHaveLength(1);
+    expect(agentTexts(run)).toEqual(["quiero cargar una riñonera"]); // mismo flujo que el texto
+    expect(sentTexts(run)).toEqual([AGENT_REPLY]);
+    expect(await mediaRows()).toHaveLength(0); // el audio no se guarda
+  },
+  "callback-pa-yes": async (run) => {
+    expect(methods(run, "answerCallbackQuery")).toHaveLength(1);
+    expect(sentTexts(run)).toEqual([copyAcciones.feriaCreada("Feria del Parque")]);
+    expect(await db.prepare("SELECT status FROM pending_actions WHERE id='fake-action-1'").first()).toEqual({ status: "executed" });
+    expect(await count("fairs")).toBe(1);
+  },
+  "callback-pa-yes-double-tap": async (run) => {
+    expect(methods(run, "answerCallbackQuery")).toHaveLength(2);
+    expect(sentTexts(run)).toEqual([copyAcciones.feriaCreada("Feria del Parque")]); // el segundo toque no repite nada
+    expect(await count("fairs")).toBe(1);
+  },
+  "album-two-videos": (run) => expectAlbumDelivered(run, 2),
+  "album-mixed-photos-video": async (run) => {
+    await expectAlbumDelivered(run, 3);
+    expect((await mediaRows()).map((r) => r.kind).sort()).toEqual(["photo", "photo", "video"]);
+  },
+  "album-three-photos-shuffled": async (run) => {
+    await expectAlbumDelivered(run, 3); // el reenvio de 1223 no crea una cuarta fila
+    expect(await count("inbox_groups", "status='flushed'")).toBe(1);
+  },
+  "video-5mb": (run) => expectSingleStored(run, "video"),
+  "document-video-mp4-5mb": (run) => expectSingleStored(run, "video"), // el document con video/* es video
+  "video-note": (run) => expectSingleStored(run, "video"),
+  animation: (run) => expectSingleStored(run, "video"),
+  "document-video-mp4-over-20mb": expectTooBig,
+  "video-over-20mb": expectTooBig,
+  "video-size-missing-getfile-too-big": async (run) => {
+    expect(methods(run, "getFile")).toHaveLength(1);
+    await expectTooBig(run);
+  },
+  "pdf-document": async (run) => {
+    expect(await mediaRows()).toHaveLength(0);
+    expect(sentTexts(run)).toEqual([copy.tipoNoSoportado]);
+    expect(run.chat.requests).toHaveLength(0);
+    expect(run.consumer.retried).toBe(0);
+  },
+};
+
+describe("simulador: aserciones profundas (consumidor real, proveedores fake)", () => {
   for (const c of cases) {
-    const reply = c.deferred.reply ? ` · respuesta ~ /${c.deferred.reply}/` : "";
-    it.todo(ascii(`${c.id} [${c.deferred.owner}]: ${c.deferred.note}${reply}`));
+    it(ascii(`${c.id}: ${c.deferred.note}`), async () => {
+      const check = deep[c.id];
+      expect(check, `falta la asercion de ${c.id}`).toBeDefined();
+      const run = await simulate(c);
+      expect(run.consumer.retried).toBe(0);
+      await check!(run);
+    });
   }
 });

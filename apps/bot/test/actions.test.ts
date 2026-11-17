@@ -346,8 +346,8 @@ describe("callback_data", () => {
 });
 
 describe("queue router", () => {
-  it("update handler ignores non-callback updates and unknown callback data without touching Telegram", async () => {
-    const { handleUpdateMessage } = await import("../src/handlers/callback");
+  it("update handler is the dispatcher and ignores updates without a chat without touching Telegram", async () => {
+    const { handleUpdateMessage } = await import("../src/handlers/dispatch");
     await expect(handleUpdateMessage({ update: { message: { text: "hola" } } }, e)).resolves.toBeUndefined();
     const { handlers } = await import("../src/queues");
     expect(handlers.update).toBe(handleUpdateMessage);
