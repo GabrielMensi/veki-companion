@@ -102,3 +102,63 @@ export const copyCatalogo = {
   /** `posponer_aviso`: confirma sin prometer avisos que todavía no existen. */
   avisoAnotado: "Listo, anotado.",
 };
+
+// ── T22: operación (mensajes para Gabriel, admin; escuetos y sin contenido de la usuaria) ──────────
+export const copyAdmin = {
+  comandoDesconocido: "Comando no reconocido. Disponibles: /estado, /log [n], /deshacer <id>, /reconstruir, /pausa on|off, /avisos.",
+  estado: (e: { pendientes: number; fallidos: number; errores24h: number; sitioPendiente: boolean; avisosPausados: boolean; buildsHoy: number }) =>
+    [
+      "Estado:",
+      `• Acciones esperando confirmación: ${e.pendientes}`,
+      `• Mensajes fallidos (14 días): ${e.fallidos}`,
+      `• Errores en las últimas 24 h: ${e.errores24h}`,
+      `• Cambios sin publicar en la web: ${e.sitioPendiente ? "sí" : "no"} (builds hoy: ${e.buildsHoy})`,
+      `• Avisos: ${e.avisosPausados ? "pausados" : "activos"}`,
+    ].join("\n"),
+  logVacio: "El registro está vacío.",
+  logUso: "Uso: /log [n] con n entre 1 y 50.",
+  deshacerUso: "Uso: /deshacer <id de la acción>.",
+  deshacerListo: (id: string) => `Deshecho: ${id}.`,
+  deshacerNoEncontrada: "No encuentro esa acción.",
+  deshacerYaEstaba: "Esa acción ya estaba deshecha.",
+  deshacerVencida: "Pasaron más de 24 h: ya no se puede deshacer.",
+  deshacerImposible: "Esa acción no se puede deshacer.",
+  reconstruirLlamado: "Pedí la reconstrucción del sitio.",
+  reconstruirSinCambios: "No hay cambios para publicar.",
+  reconstruirTope: "Se llegó al tope de builds de hoy.",
+  reconstruirSinHook: "Falta configurar el deploy hook.",
+  reconstruirFalla: "No pude llamar al deploy hook; el cambio sigue pendiente.",
+  reconstruirOtro: "Ya hay una reconstrucción en curso.",
+  pausaUso: "Uso: /pausa on|off.",
+  pausaOn: "Avisos pausados.",
+  pausaOff: "Avisos reactivados.",
+  avisosVacio: "No hay avisos registrados todavía.",
+  avisosUso: "Para reactivar: /avisos <tipo> on.",
+  avisosReactivado: (tipo: string) => `Reactivé el aviso ${tipo}.`,
+  avisosNoExiste: (tipo: string) => `No conozco el aviso ${tipo}.`,
+  alerta: {
+    error: (n: number) => `Alerta: ${n} error(es) nuevos en el registro. Mirá con /log.`,
+    renderFallido: (n: number) => `Alerta: ${n} contenido(s) no se pudieron generar.`,
+    proveedorEnPausa: (modelo: string) => `Alerta: el proveedor ${modelo} está en pausa hace más de 1 hora.`,
+    malentendidos: "Alerta: dos malentendidos seguidos en la conversación. Mirá /log.",
+  },
+  resumenDiario: (r: {
+    acciones: number;
+    errores: number;
+    uso: { modelo: string; usados: number; tope: number }[];
+    builds: number;
+    ignorados: number;
+    pausados: string[];
+  }) =>
+    [
+      "Resumen del día:",
+      `• Acciones ejecutadas: ${r.acciones}`,
+      `• Errores: ${r.errores}`,
+      ...(r.uso.length
+        ? r.uso.map((u) => `• ${u.modelo}: ${u.usados.toLocaleString("es-AR")} de ${u.tope.toLocaleString("es-AR")} tokens`)
+        : ["• Proveedores: sin uso hoy"]),
+      `• Builds del sitio: ${r.builds}`,
+      `• Avisos ignorados: ${r.ignorados}`,
+      ...(r.pausados.length ? [`• Avisos pausados por falta de respuesta: ${r.pausados.join(", ")}`] : []),
+    ].join("\n"),
+};
