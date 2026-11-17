@@ -1,0 +1,106 @@
+[
+  {
+    "id": "album-two-videos",
+    "description": "Álbum de 2 videos (`video` y `document` video/quicktime) con el mismo media_group_id.",
+    "updates": [
+      {
+        "update_id": 1201,
+        "message": {
+          "message_id": 11, "date": 0, "media_group_id": "fake-group-videos", "chat": { "id": 1001, "type": "private" }, "from": { "id": 1001, "is_bot": false, "first_name": "Prueba" },
+          "video": { "file_id": "fake-av-1", "file_unique_id": "fake-uav-1", "width": 720, "height": 1280, "duration": 8, "file_size": 3145728 }
+        }
+      },
+      {
+        "update_id": 1202,
+        "message": {
+          "message_id": 12, "date": 0, "media_group_id": "fake-group-videos", "chat": { "id": 1001, "type": "private" }, "from": { "id": 1001, "is_bot": false, "first_name": "Prueba" },
+          "document": { "file_id": "fake-av-2", "file_unique_id": "fake-uav-2", "file_name": "falso-2.mov", "mime_type": "video/quicktime", "file_size": 4194304 }
+        }
+      }
+    ],
+    "expect": {
+      "rows": [
+        { "update_id": 1201, "kind": "message" },
+        { "update_id": 1202, "kind": "message" }
+      ]
+    },
+    "deferred": { "owner": "T17", "note": "un solo evento de álbum al agente tras el flush (02 §2.3), no una respuesta por video" }
+  },
+  {
+    "id": "album-mixed-photos-video",
+    "description": "Álbum mixto: 2 fotos y 1 video con el mismo media_group_id.",
+    "updates": [
+      {
+        "update_id": 1211,
+        "message": {
+          "message_id": 21, "date": 0, "media_group_id": "fake-group-mixed", "chat": { "id": 1001, "type": "private" }, "from": { "id": 1001, "is_bot": false, "first_name": "Prueba" },
+          "photo": [{ "file_id": "fake-mix-p1", "file_unique_id": "fake-umix-p1", "width": 90, "height": 90, "file_size": 1200 }]
+        }
+      },
+      {
+        "update_id": 1212,
+        "message": {
+          "message_id": 22, "date": 0, "media_group_id": "fake-group-mixed", "chat": { "id": 1001, "type": "private" }, "from": { "id": 1001, "is_bot": false, "first_name": "Prueba" },
+          "photo": [{ "file_id": "fake-mix-p2", "file_unique_id": "fake-umix-p2", "width": 90, "height": 90, "file_size": 1300 }]
+        }
+      },
+      {
+        "update_id": 1213,
+        "message": {
+          "message_id": 23, "date": 0, "media_group_id": "fake-group-mixed", "chat": { "id": 1001, "type": "private" }, "from": { "id": 1001, "is_bot": false, "first_name": "Prueba" },
+          "video": { "file_id": "fake-mix-v", "file_unique_id": "fake-umix-v", "width": 720, "height": 1280, "duration": 6, "file_size": 3145728 }
+        }
+      }
+    ],
+    "expect": {
+      "rows": [
+        { "update_id": 1211, "kind": "message" },
+        { "update_id": 1212, "kind": "message" },
+        { "update_id": 1213, "kind": "message" }
+      ]
+    },
+    "deferred": { "owner": "T17", "note": "fotos y video en `media` (estado inbox) y un solo evento de álbum al agente" }
+  },
+  {
+    "id": "album-three-photos-shuffled",
+    "description": "3 fotos del mismo álbum llegan desordenadas y Telegram reenvía una (update 1223 dos veces).",
+    "updates": [
+      {
+        "update_id": 1223,
+        "message": {
+          "message_id": 33, "date": 0, "media_group_id": "fake-group-photos", "chat": { "id": 1001, "type": "private" }, "from": { "id": 1001, "is_bot": false, "first_name": "Prueba" },
+          "photo": [{ "file_id": "fake-ph-3", "file_unique_id": "fake-uph-3", "width": 90, "height": 90, "file_size": 1400 }]
+        }
+      },
+      {
+        "update_id": 1221,
+        "message": {
+          "message_id": 31, "date": 0, "media_group_id": "fake-group-photos", "chat": { "id": 1001, "type": "private" }, "from": { "id": 1001, "is_bot": false, "first_name": "Prueba" },
+          "photo": [{ "file_id": "fake-ph-1", "file_unique_id": "fake-uph-1", "width": 90, "height": 90, "file_size": 1100 }]
+        }
+      },
+      {
+        "update_id": 1222,
+        "message": {
+          "message_id": 32, "date": 0, "media_group_id": "fake-group-photos", "chat": { "id": 1001, "type": "private" }, "from": { "id": 1001, "is_bot": false, "first_name": "Prueba" },
+          "photo": [{ "file_id": "fake-ph-2", "file_unique_id": "fake-uph-2", "width": 90, "height": 90, "file_size": 1200 }]
+        }
+      },
+      {
+        "update_id": 1223,
+        "message": {
+          "message_id": 33, "date": 0, "media_group_id": "fake-group-photos", "chat": { "id": 1001, "type": "private" }, "from": { "id": 1001, "is_bot": false, "first_name": "Prueba" },
+          "photo": [{ "file_id": "fake-ph-3", "file_unique_id": "fake-uph-3", "width": 90, "height": 90, "file_size": 1400 }]
+        }
+      }
+    ],
+    "expect": {
+      "rows": [
+        { "update_id": 1221, "kind": "message" },
+        { "update_id": 1222, "kind": "message" },
+        { "update_id": 1223, "kind": "message" }
+      ]
+    },
+    "deferred": { "owner": "T17", "note": "el reenvío de 1223 no crea una segunda fila de `media` ni un segundo evento; un solo flush entrega el álbum (02 §2.3)" }
+  }
+]

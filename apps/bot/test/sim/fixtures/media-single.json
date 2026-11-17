@@ -1,0 +1,123 @@
+[
+  {
+    "id": "video-5mb",
+    "description": "Video de 5 MB enviado como `video`.",
+    "updates": [
+      {
+        "update_id": 1101,
+        "message": {
+          "message_id": 1, "date": 0, "chat": { "id": 1001, "type": "private" }, "from": { "id": 1001, "is_bot": false, "first_name": "Prueba" },
+          "video": { "file_id": "fake-video-5mb", "file_unique_id": "fake-u-5mb", "width": 720, "height": 1280, "duration": 10, "file_size": 5242880 }
+        }
+      }
+    ],
+    "expect": { "rows": [{ "update_id": 1101, "kind": "message" }] },
+    "deferred": { "owner": "T17", "note": "descarga a R2 (orig/YYYY/MM/<id>.mp4) y fila `media` (02 §4.1)" }
+  },
+  {
+    "id": "document-video-mp4-5mb",
+    "description": "Video de 5 MB llegado como `document` con mime video/mp4 (hallazgo del spike).",
+    "updates": [
+      {
+        "update_id": 1102,
+        "message": {
+          "message_id": 2, "date": 0, "chat": { "id": 1001, "type": "private" }, "from": { "id": 1001, "is_bot": false, "first_name": "Prueba" },
+          "document": { "file_id": "fake-doc-mp4", "file_unique_id": "fake-u-doc-mp4", "file_name": "clip-falso.mp4", "mime_type": "video/mp4", "file_size": 5242880 }
+        }
+      }
+    ],
+    "expect": { "rows": [{ "update_id": 1102, "kind": "message" }] },
+    "deferred": { "owner": "T17", "note": "se trata como video (no como documento) y se guarda en R2 (02 §4.1)" }
+  },
+  {
+    "id": "document-video-mp4-over-20mb",
+    "description": "Video de 24,5 MB llegado como `document` video/mp4: supera el tope de getFile.",
+    "updates": [
+      {
+        "update_id": 1103,
+        "message": {
+          "message_id": 3, "date": 0, "chat": { "id": 1001, "type": "private" }, "from": { "id": 1001, "is_bot": false, "first_name": "Prueba" },
+          "document": { "file_id": "fake-doc-big", "file_unique_id": "fake-u-doc-big", "file_name": "grande-falso.mp4", "mime_type": "video/mp4", "file_size": 25690112 }
+        }
+      }
+    ],
+    "expect": { "rows": [{ "update_id": 1103, "kind": "message" }] },
+    "deferred": { "owner": "T17", "reply": "clip", "note": "no se descarga; responde pidiendo un clip de ~10 s (02 §4.1, tabla de casos)" }
+  },
+  {
+    "id": "video-over-20mb",
+    "description": "Video de 24,5 MB enviado como `video`.",
+    "updates": [
+      {
+        "update_id": 1104,
+        "message": {
+          "message_id": 4, "date": 0, "chat": { "id": 1001, "type": "private" }, "from": { "id": 1001, "is_bot": false, "first_name": "Prueba" },
+          "video": { "file_id": "fake-video-big", "file_unique_id": "fake-u-video-big", "width": 720, "height": 1280, "duration": 90, "file_size": 25690112 }
+        }
+      }
+    ],
+    "expect": { "rows": [{ "update_id": 1104, "kind": "message" }] },
+    "deferred": { "owner": "T17", "reply": "clip", "note": "no se descarga; responde pidiendo un clip de ~10 s (02 §4.1, tabla de casos)" }
+  },
+  {
+    "id": "video-note",
+    "description": "Nota de video circular (`video_note`) de 1 MB.",
+    "updates": [
+      {
+        "update_id": 1105,
+        "message": {
+          "message_id": 5, "date": 0, "chat": { "id": 1001, "type": "private" }, "from": { "id": 1001, "is_bot": false, "first_name": "Prueba" },
+          "video_note": { "file_id": "fake-vnote", "file_unique_id": "fake-u-vnote", "length": 240, "duration": 5, "file_size": 1048576 }
+        }
+      }
+    ],
+    "expect": { "rows": [{ "update_id": 1105, "kind": "message" }] },
+    "deferred": { "owner": "T17", "note": "se trata como video corto y se guarda en R2" }
+  },
+  {
+    "id": "animation",
+    "description": "GIF animado (`animation`) de 1 MB.",
+    "updates": [
+      {
+        "update_id": 1106,
+        "message": {
+          "message_id": 6, "date": 0, "chat": { "id": 1001, "type": "private" }, "from": { "id": 1001, "is_bot": false, "first_name": "Prueba" },
+          "animation": { "file_id": "fake-anim", "file_unique_id": "fake-u-anim", "width": 320, "height": 240, "duration": 3, "file_size": 1048576 }
+        }
+      }
+    ],
+    "expect": { "rows": [{ "update_id": 1106, "kind": "message" }] },
+    "deferred": { "owner": "T17", "note": "se trata como video corto y se guarda en R2" }
+  },
+  {
+    "id": "video-size-missing-getfile-too-big",
+    "description": "Video sin `file_size`; getFile responde 400 \"file is too big\".",
+    "updates": [
+      {
+        "update_id": 1107,
+        "message": {
+          "message_id": 7, "date": 0, "chat": { "id": 1001, "type": "private" }, "from": { "id": 1001, "is_bot": false, "first_name": "Prueba" },
+          "video": { "file_id": "fake-video-nosize", "file_unique_id": "fake-u-nosize", "width": 720, "height": 1280, "duration": 60 }
+        }
+      }
+    ],
+    "botApi": { "getFile": { "error_code": 400, "description": "Bad Request: file is too big" } },
+    "expect": { "rows": [{ "update_id": 1107, "kind": "message" }] },
+    "deferred": { "owner": "T17", "reply": "clip", "note": "getFile 400 \"too big\" → mismo texto que > 20 MB (pedir clip)" }
+  },
+  {
+    "id": "pdf-document",
+    "description": "PDF (`document` application/pdf): tipo no soportado.",
+    "updates": [
+      {
+        "update_id": 1108,
+        "message": {
+          "message_id": 8, "date": 0, "chat": { "id": 1001, "type": "private" }, "from": { "id": 1001, "is_bot": false, "first_name": "Prueba" },
+          "document": { "file_id": "fake-pdf", "file_unique_id": "fake-u-pdf", "file_name": "falso.pdf", "mime_type": "application/pdf", "file_size": 1000 }
+        }
+      }
+    ],
+    "expect": { "rows": [{ "update_id": 1108, "kind": "message" }] },
+    "deferred": { "owner": "T17", "reply": "Por ahora entiendo", "note": "responde copy.tipoNoSoportado (docs/02 §4.1 tabla de casos)" }
+  }
+]
