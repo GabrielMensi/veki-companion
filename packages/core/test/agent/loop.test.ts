@@ -97,11 +97,11 @@ describe("responder", () => {
   });
 });
 
-describe("tope de 4 llamadas", () => {
-  it("4 llamadas sin salida → copy.noEntendi y +1 malentendido", async () => {
+describe("tope de 3 llamadas", () => {
+  it("3 llamadas sin salida → copy.noEntendi y +1 malentendido", async () => {
     const { chat, p } = run([turn(call("buscar_productos", { consulta: "riñonera" }))]);
     const res = await p;
-    expect(chat.requests).toHaveLength(4);
+    expect(chat.requests).toHaveLength(3);
     expect(res.output.texto).toBe(copy.noEntendi);
     expect(res.misunderstood).toBe(true);
     expect(res.state.misunderstandings).toBe(1);
@@ -140,11 +140,11 @@ describe("lecturas e historial", () => {
     expect(chat.requests[1]!.messages.some((m) => m.role === "tool" && m.content === "resultado de buscar_productos")).toBe(true);
   });
 
-  it("el historial se recorta a 12", async () => {
+  it("el historial se recorta a 6 (R3)", async () => {
     const history = Array.from({ length: 20 }, (_, i) => ({ role: (i % 2 ? "assistant" : "user") as "user" | "assistant", content: `m${i}` }));
     const chat = new FakeChatProvider([say("ok")]);
     const res = await runAgent({ chat, host: new FakeHost() }, { state: emptyState(), history, input: { chatId: 1, text: "nuevo" } });
-    expect(res.history).toHaveLength(12);
+    expect(res.history).toHaveLength(6);
     expect(res.history.at(-1)).toEqual({ role: "assistant", content: "ok" });
   });
 

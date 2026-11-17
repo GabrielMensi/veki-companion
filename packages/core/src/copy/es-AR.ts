@@ -80,3 +80,12 @@ export const copyMedia = {
   videoPesado: (bytes?: number) =>
     `Uh, ese video pesa ${bytes === undefined ? "más de 20 MB" : `${mbTexto(bytes)} MB`} y no lo puedo bajar (mi límite es 20 MB). ¿Me mandás uno más cortito, de unos 10 segundos? 🙏`,
 };
+
+// ── R3: presupuesto de tokens del chat ─────────────────────────────────────
+export const copyPresupuesto = {
+  /** A la usuaria cuando todos los modelos están ocupados: nunca ve un error, solo esto; el update se reintenta solo. */
+  teAvisoEnUnRatito: "Estoy un poquito lenta ahora, te aviso en un ratito 🙏",
+  /** Aviso a Gabriel (admin) al 80 % del tope diario de un modelo. Una vez por día por modelo. */
+  presupuestoAlto: (modelo: string, usados: number, tope: number) =>
+    `Aviso: el modelo ${modelo} ya usó ${usados.toLocaleString("es-AR")} de ${tope.toLocaleString("es-AR")} tokens de hoy (80 %). Si se agota, el chat pasa al siguiente modelo.`,
+};
