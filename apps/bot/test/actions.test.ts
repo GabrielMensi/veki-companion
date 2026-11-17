@@ -121,7 +121,7 @@ describe("callbacks: confirmar", () => {
 
   it("a tool without executor yet keeps the action pending and says so", async () => {
     const tg = new FakeTg();
-    const a = await mkAction("pedir_contenido", { tipo: "flyer", plantilla: "feria" });
+    const a = await mkAction("ver_agenda", {}) // ninguna herramienta de escritura queda sin ejecutor (T19); una de lectura nunca lo tiene;
     await click(tg, new InMemoryConversationStore(), paData(a.id, "yes"));
     expect(tg.sent[0]!.text).toBe(copyAcciones.todaviaNo);
     expect((await one<{ status: string }>("SELECT status FROM pending_actions WHERE id=?", a.id)).status).toBe("pending");

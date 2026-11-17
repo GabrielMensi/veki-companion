@@ -89,3 +89,16 @@ export const copyPresupuesto = {
   presupuestoAlto: (modelo: string, usados: number, tope: number) =>
     `Aviso: el modelo ${modelo} ya usó ${usados.toLocaleString("es-AR")} de ${tope.toLocaleString("es-AR")} tokens de hoy (80 %). Si se agota, el chat pasa al siguiente modelo.`,
 };
+
+// ── T19: catálogo y ejecutores de respaldo ──────────────────────────────────
+export const copyCatalogo = {
+  borradorIncompleto: "Todavía me falta algún dato para cargarlo. ¿Seguimos armándolo?",
+  fotoNoDisponible: "Alguna de las fotos ya no está disponible o ya la usé en otro producto. ¿Me las mandás de nuevo?",
+  variantesMal: "No me quedó claro qué variantes tocar. ¿Me lo decís de nuevo?",
+  fotosAgregadas: (nombre: string, n: number) => `Listo, sumé ${n === 1 ? "1 foto" : `${n} fotos`} a ${nombre}.`,
+  variantesActualizadas: (nombre: string) => `Listo, actualicé las variantes de ${nombre}.`,
+  /** `pedir_contenido` (Stage 3): todavía no existe; nunca se promete una fecha. */
+  contenidoTodavia: "Todavía no puedo armarte flyers ni reels, pero pronto vas a poder pedírmelos 🙂 Por ahora seguimos con los productos y las ferias.",
+  /** `posponer_aviso`: confirma sin prometer avisos que todavía no existen. */
+  avisoAnotado: "Listo, anotado.",
+};

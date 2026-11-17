@@ -59,7 +59,7 @@ flowchart LR
 
 1. Ella manda 3 fotos (álbum) y una nota de voz: "Esta es la riñonera girasol, sale doce mil quinientos, tengo dos".
 2. Webhook (por cada update): verifica `X-Telegram-Bot-Api-Secret-Token`, verifica `chat.id` en la allowlist, `INSERT OR IGNORE INTO updates(update_id…)`; si ya existía responde 200 y termina (Telegram reintenta). Si es nuevo, `q-updates.send({type:"update", update_id, update})` (el cuerpo del update viaja en el mensaje transitorio de la cola porque la tabla `updates` no guarda payload) y responde 200.
-3. Consumidor (`q-updates`, lote 1, concurrencia 1): fotos con `media_group_id` → se guardan en `media` (estado `inbox`) y se registra el grupo en `inbox_groups`; se encola en `q-jobs` un `album_flush` con `delaySeconds: 3` (§2.3). Voz → descarga de Telegram → Groq Whisper → texto → agente.
+3. Consumidor (`q-updates`, lote 1, concurrencia 1): fotos con `media_group_id` → se guardan en `media` (estado `inbox`) y se registra el grupo en `inbox_groups`; se encola en `q-jobs` un `album.flush` con `delaySeconds: 3` (§2.3). Voz → descarga de Telegram → Groq Whisper → texto → agente.
 4. El agente llama `actualizar_borrador({nombre, precio, stock})`. El código calcula qué falta (`categoria`): el bot pregunta **una sola cosa**.
 5. Con el borrador completo, el agente llama `crear_producto` → se crea una `pending_action` con vista previa y botones **Sí / Cambiar / Cancelar**.
 6. "Sí" → ejecución idempotente, `event_log`, `site_state.dirty_since = now`. El bot responde "¡Listo! En un ratito aparece en la web" con botón **Deshacer**.
@@ -261,10 +261,12 @@ CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL); -- JSON
 El spike agrupaba con un `setTimeout` en memoria (`spikes/telegram/src/handlers.ts`); en Workers los isolates no comparten memoria. Solución solo con D1 + Queues, sin Durable Objects:
 
 1. Por cada foto/video con `media_group_id`: `INSERT INTO inbox_groups … ON CONFLICT(media_group_id) DO UPDATE SET item_count = item_count + 1, last_at = :now`, más la fila en `media` (`status='inbox'`), en un solo `db.batch()`.
-2. Encolar en `q-jobs` `{type:'album_flush', gid}` con `delaySeconds: 3`.
+2. Encolar en `q-jobs` `{type:'album.flush', gid}` con `delaySeconds: 3`.
 3. El consumidor ejecuta `UPDATE inbox_groups SET status='flushed' WHERE media_group_id=:gid AND status='open' AND last_at <= :now - 2000`. Si `changes = 1`, este mensaje "ganó" y entrega el álbum al agente como un solo evento. Si `changes = 0` y el grupo sigue `open`, `retry({delaySeconds: 2})`; si ya está `flushed`, ack sin hacer nada.
 
 Cada mensaje del álbum genera un flush; solo uno gana gracias al `UPDATE` condicional (atómico en SQLite). Costo: ~4 escrituras por foto. La ventana de 2 s es la del spike (`ALBUM_DEBOUNCE_MS`). La granularidad mínima de `delaySeconds` es 1 s, así que la respuesta llega 3–5 s después de la última foto: aceptable.
+
+Hasta que exista la columna `media.media_group_id` (migración planificada), la pertenencia de cada foto a su álbum se guarda como filas de `event_log` de tipo `media.group_member`.
 
 Como `q-updates` corre con concurrencia 1 (`max_concurrency = 1`, [consumer concurrency](https://developers.cloudflare.com/queues/configuration/consumer-concurrency/)), los updates de ella se procesan en orden y `conversations` no tiene escrituras concurrentes del mismo chat. Igual se usa `version` (bloqueo optimista) porque `q-jobs` también escribe estado al entregar resultados.
 
