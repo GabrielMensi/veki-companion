@@ -1,0 +1,33 @@
+name: ci
+
+# Typecheck, tests and web build for PRs and pushes to develop.
+# Public repo: no secrets, no tokens, synthetic fixtures only.
+on:
+  pull_request:
+    branches: [develop]
+  push:
+    branches: [develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      # apps/web has no build script until T21 merges; --if-present keeps CI green
+      # meanwhile. Make it strict (drop --if-present) once T21 lands.
+      - run: npm test
+      - run: npm run build -w apps/web --if-present
