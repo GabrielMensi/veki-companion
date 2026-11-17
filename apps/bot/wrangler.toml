@@ -7,7 +7,7 @@ compatibility_date = "2025-09-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "veki"
-database_id = ""
+database_id = "a0f7c34a-28c4-4d67-bf09-9cd58ee005d8"
 migrations_dir = "../../migrations"
 
 [[r2_buckets]]
