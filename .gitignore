@@ -1,0 +1,6 @@
+samples/
+*:Zone.Identifier
+.env
+.env.*
+.dev.vars
+node_modules/
