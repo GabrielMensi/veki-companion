@@ -1,6 +1,7 @@
 import { ulid } from "@veki/core";
 import type { Env } from "./env";
 import { handleUpdateMessage } from "./handlers/callback";
+import { handleAlbumFlush } from "./jobs/album-flush";
 
 /** Mensajes de q-updates y q-jobs. `type` decide el handler. */
 export type UpdateMessage = { type: "update"; update_id: number; update: unknown };
@@ -21,7 +22,7 @@ export const handlers: Record<string, Handler> = {
   "vision.rank": stub,
   "content.generate": stub,
   "content.deliver": stub,
-  "album.flush": stub,
+  "album.flush": async (msg, env) => void (await handleAlbumFlush(msg, env)),
 };
 
 export interface QueueMessageLike {
