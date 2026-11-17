@@ -49,6 +49,8 @@
 | D7 | Instagram: **etapa posterior**. En el MVP el bot entrega el contenido listo y ella lo publica manualmente. | La publicación por API exige cuenta profesional; la conversión queda para más adelante. |
 | D8 | Dominio propio: más adelante, si ella se siente cómoda. | Prioridad gratis. |
 | D9 | Speech-to-text: Groq `whisper-large-v3`, sin pista de vocabulario. | Spike 1: 10 notas reales, 0 errores de API, ~450 ms de latencia, solo 3 diferencias menores de palabra frente a la lectura. Detalle en `spikes/whisper` (PR #2). |
+| D10 | Render de flyers y reels en el runner de **GitHub Actions** (repo público, minutos gratis). | Spike 3: el flyer con Satori no entra en los 10 ms de CPU de Workers (145–330 ms medidos en Node). Un reel de 24 s se renderiza en 7,5–12 s en Actions, cola de 1–3 s, y pasa los chequeos de Reels de Instagram. Detalle en `spikes/render`. Falta medir el disparo con `repository_dispatch` desde el bot. |
+| D11 | Visión: Gemini (primario) y Groq (respaldo), siempre **asíncrono con reintentos**; nombres de modelo configurables. | Spike 4: Gemini devolvió 503 en 13 de 29 intentos (latencia hasta 378 s) y Groq choca con 429 (8K TPM, máx. 3 imágenes por pedido). Calidad de textos buena pero genérica con cuadros de video: pedir una foto por producto y datos confirmados por ella. Detalle en `spikes/vision`. |
 
 ## 5. Stack de IA (verificado el 2026-11-16, con las salvedades de la sección 8)
 
@@ -105,7 +107,14 @@ GitHub Actions (repo privado) se descartó para el inicio porque el autor agotó
 - **Render:** latencia y tiempos reales sin medir en ninguna opción.
 - **Adopción:** el éxito depende de que ella use el bot. Tono, brevedad y proactividad son parte del producto, no detalles.
 
-## 9. Spikes propuestos (pruebas cortas, antes del diseño)
+## 9. Spikes (resueltos el 2026-11-17)
+
+Los cuatro spikes están mergeados en `develop` bajo `spikes/`. Resumen en D9, D10 y D11 y en estos hallazgos:
+
+- Telegram: los videos del celular llegan como `document`, no como `video`; los videos reales de feria pesan ~9 MB, lejos del tope de 20 MB; el bot puede iniciar la conversación sin que ella escriba antes; las notas de voz se descargan bien.
+- La agrupación de álbumes usa memoria del proceso: en Workers necesita estado compartido (Durable Object o D1).
+
+Propuesta original, para referencia:
 
 1. **Whisper:** probar Groq con ~10 notas de voz reales de ella.
 2. **Render:** medir un flyer y un reel de prueba en las opciones A y B. Verificar el límite de CPU en Workers.

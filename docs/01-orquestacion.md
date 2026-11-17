@@ -14,7 +14,9 @@ Language: English between agents. The user speaks Spanish; anything addressed to
 - Every worker starts from a fresh `origin/develop`, in its own worktree and branch (`task/<short-name>`). Nobody works in the main tree and nobody shares a working tree.
 - A worker opens a PR **to `develop`** only when its work is ready and has been approved by the orchestrator (checks run, evidence reviewed). The PR description states what changed, how it was verified, and any open risk.
 - Nobody merges a PR. The orchestrator reports the PR link to the root coordinator, who gets the user's approval and merges.
-- Clean merged worktrees and branches when the task is done (`worker-release`).
+- **Cleanup is mandatory and tracked by the orchestrator.** After a PR is merged, the orchestrator releases the worker (`worker-release`), removes its worktree, and deletes its local and remote branch. It keeps a list of unmerged PRs and their worktrees, and on every task it also sweeps any merged leftovers. The orchestrator's own worktree stays.
+- Branch names created by Orca look like `GabrielMensi/task-<name>`; that is accepted, not an error.
+- The repo is public: never use private data in CI, and never put secrets in workflows.
 - Commit messages end with the attribution line given by the environment.
 
 ## Models
