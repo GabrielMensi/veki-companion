@@ -1,0 +1,70 @@
+---
+import "@fontsource/poppins/latin-400.css";
+import "@fontsource/poppins/latin-600.css";
+import "@fontsource/poppins/latin-700.css";
+import "../styles/global.css";
+
+interface Props {
+  title: string;
+  description?: string;
+  /** URL absoluta de la imagen Open Graph (portada). */
+  ogImage?: string;
+  /** Contador de ruta actual para marcar la navegación. */
+  current?: "inicio" | "catalogo" | "agenda";
+}
+
+const { title, description = "Accesorios textiles artesanales con diseño creativo y colorido.", ogImage, current } = Astro.props;
+const fullTitle = title === "Veky" ? "Veky · Accesorios textiles artesanales" : `${title} · Veky`;
+const canonical = new URL(Astro.url.pathname, Astro.site).href;
+const nav = [
+  { key: "inicio", href: "/", label: "Inicio" },
+  { key: "catalogo", href: "/catalogo/", label: "Catálogo" },
+  { key: "agenda", href: "/agenda/", label: "Agenda" },
+] as const;
+---
+
+<!doctype html>
+<html lang="es-AR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#AC9FD6" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="canonical" href={canonical} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Veky" />
+    <meta property="og:locale" content="es_AR" />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    {ogImage && <meta property="og:image" content={ogImage} />}
+    <meta name="twitter:card" content={ogImage ? "summary_large_image" : "summary"} />
+  </head>
+  <body>
+    <a class="skip" href="#contenido">Saltar al contenido</a>
+    <header class="site-header">
+      <a class="wordmark" href="/" aria-label="Veky, inicio">Veky</a>
+      <nav aria-label="Principal">
+        <ul>
+          {
+            nav.map((n) => (
+              <li>
+                <a href={n.href} aria-current={current === n.key ? "page" : undefined}>
+                  {n.label}
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </nav>
+    </header>
+    <main id="contenido">
+      <slot />
+    </main>
+    <footer class="site-footer">
+      <p><strong>Veky</strong> · accesorios textiles hechos a mano, con mucho color.</p>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,20 @@
+---
+import Base from "../layouts/Base.astro";
+import FairCard from "../components/FairCard.astro";
+import { loadCatalog, upcomingFairs } from "../lib/catalog";
+
+const fairs = upcomingFairs(await loadCatalog());
+---
+
+<Base title="Agenda" description="Próximas ferias donde encontrar a Veky." current="agenda">
+  <h1>Agenda</h1>
+  {
+    fairs.length === 0 ? (
+      <p>Todavía no tenemos ferias confirmadas. ¡Seguinos para enterarte primero!</p>
+    ) : (
+      <ul class="fair-list">
+        {fairs.map((f) => <li><FairCard fair={f} heading="h2" /></li>)}
+      </ul>
+    )
+  }
+</Base>

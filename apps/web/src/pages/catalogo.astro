@@ -1,0 +1,36 @@
+---
+import Base from "../layouts/Base.astro";
+import ProductCard from "../components/ProductCard.astro";
+import { loadCatalog, sortProducts } from "../lib/catalog";
+
+const catalog = await loadCatalog();
+const sorted = sortProducts(catalog.products);
+const groups = catalog.categories
+  .map((c) => ({ ...c, products: sorted.filter((p) => p.category === c.slug) }))
+  .filter((g) => g.products.length > 0);
+---
+
+<Base title="Catálogo" description="Todo el catálogo de Veky por categoría." current="catalogo">
+  <h1>Catálogo</h1>
+  {
+    groups.length === 0 ? (
+      <p>Estamos cargando novedades. ¡Volvé pronto!</p>
+    ) : (
+      <>
+        <nav aria-label="Categorías">
+          <ul class="chips">
+            {groups.map((g) => <li><a href={`#${g.slug}`}>{g.label}</a></li>)}
+          </ul>
+        </nav>
+        {groups.map((g) => (
+          <section class="section" aria-labelledby={`cat-${g.slug}`}>
+            <h2 id={g.slug}><span id={`cat-${g.slug}`}>{g.label}</span></h2>
+            <ul class="grid">
+              {g.products.map((p) => <ProductCard product={p} />)}
+            </ul>
+          </section>
+        ))}
+      </>
+    )
+  }
+</Base>

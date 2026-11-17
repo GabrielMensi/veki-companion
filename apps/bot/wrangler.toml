@@ -1,0 +1,39 @@
+name = "veki-bot"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+
+# Bindings D1/R2/Queues con los nombres reales de producción. database_id (no es secreto) se completa
+# con el id que devuelve `wrangler d1 create veki` (ops/DEPLOY.md, paso 2). Vacío hasta ese paso.
+[[d1_databases]]
+binding = "DB"
+database_name = "veki"
+database_id = "a0f7c34a-28c4-4d67-bf09-9cd58ee005d8"
+migrations_dir = "../../migrations"
+
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "veki-media"
+
+[[queues.producers]]
+binding = "Q_UPDATES"
+queue = "q-updates"
+
+[[queues.producers]]
+binding = "Q_JOBS"
+queue = "q-jobs"
+
+[[queues.consumers]]
+queue = "q-updates"
+max_batch_size = 1
+max_concurrency = 1
+
+[[queues.consumers]]
+queue = "q-jobs"
+max_concurrency = 2
+
+[triggers]
+crons = ["*/15 * * * *", "0 9 * * *"]
+
+# Secrets (wrangler secret), leídos por el código hoy: TELEGRAM_BOT_TOKEN, TG_WEBHOOK_SECRET, DEPLOY_HOOK_URL,
+# GROQ_API_KEY, ALLOWED_CHAT_IDS (y GEMINI_API_KEY, declarada en env.ts). No hay [vars]: ALLOWED_CHAT_IDS es secret porque
+# los chat ids son datos personales de un repo público. Locales en .dev.vars (gitignored). Ver ops/DEPLOY.md, pasos 6 y 7.

@@ -1,0 +1,52 @@
+name: render-spike
+
+# Spike: measure FFmpeg reel render time and queue latency on GitHub-hosted runners.
+# Public repo, no secrets, synthetic inputs only.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "spikes/render/**"
+      - ".github/workflows/render-spike.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  reel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: spikes/render
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: spikes/render/package-lock.json
+      - name: Install ffmpeg (not preinstalled on ubuntu-latest)
+        working-directory: .
+        run: |
+          time (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core bc)
+      - name: Install dependencies
+        run: npm ci
+      - name: Runner info
+        run: |
+          echo "nproc=$(nproc)"; ffmpeg -version | head -1
+          grep -m1 'model name' /proc/cpuinfo; free -m | head -2
+      - name: Generate synthetic assets
+        run: npm run assets
+      - name: Render reel (timed)
+        run: |
+          START=$(date +%s.%N)
+          npm run reel | tee reel.log
+          END=$(date +%s.%N)
+          echo "WALL_INCL_NODE_STARTUP=$(echo "$END - $START" | bc)" | tee -a reel.log
+          { echo '### Reel render'; echo '```'; grep -E 'REEL_RENDER_SECONDS|WALL_|PASS|FAIL' reel.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reel-mp4
+          path: spikes/render/out/reel.mp4
+          retention-days: 3

@@ -1,0 +1,32 @@
+[
+  {
+    "id": "text-hola",
+    "description": "Texto simple \"hola\".",
+    "updates": [
+      {
+        "update_id": 1301,
+        "message": {
+          "message_id": 41, "date": 0, "chat": { "id": 1001, "type": "private" }, "from": { "id": 1001, "is_bot": false, "first_name": "Prueba" },
+          "text": "hola"
+        }
+      }
+    ],
+    "expect": { "rows": [{ "update_id": 1301, "kind": "message" }] },
+    "deferred": { "owner": "T16", "note": "el texto va al agente (handleText) y el consumidor responde con una respuesta no vacía; hoy el router de `update` es un stub" }
+  },
+  {
+    "id": "voice-note",
+    "description": "Nota de voz de 4 s (ogg).",
+    "updates": [
+      {
+        "update_id": 1302,
+        "message": {
+          "message_id": 42, "date": 0, "chat": { "id": 1001, "type": "private" }, "from": { "id": 1001, "is_bot": false, "first_name": "Prueba" },
+          "voice": { "file_id": "fake-voice", "file_unique_id": "fake-u-voice", "duration": 4, "mime_type": "audio/ogg", "file_size": 20000 }
+        }
+      }
+    ],
+    "expect": { "rows": [{ "update_id": 1302, "kind": "message" }] },
+    "deferred": { "owner": "T16", "note": "descarga → STT fake → mismo resultado que el texto; el audio no se guarda (docs/02 §3.4, handlers/voice.ts); hoy el router de `update` es un stub" }
+  }
+]

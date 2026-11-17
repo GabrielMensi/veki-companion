@@ -1,0 +1,108 @@
+---
+import { getImage } from "astro:assets";
+import Base from "../../layouts/Base.astro";
+import Photo from "../../components/Photo.astro";
+import { loadCatalog, sortedMedia } from "../../lib/catalog";
+import type { Product } from "../../lib/catalog-schema";
+import { mediaSrc } from "../../lib/media";
+import { AVAILABILITY_LABEL, formatPrice, variantLabel, variantPrice } from "../../lib/format";
+import { waLink, waMessage } from "@veki/core";
+
+export async function getStaticPaths() {
+  const catalog = await loadCatalog();
+  return catalog.products.map((product) => ({
+    params: { slug: product.slug },
+    props: { product, whatsapp: catalog.whatsapp_number, categories: catalog.categories },
+  }));
+}
+
+interface Props {
+  product: Product;
+  whatsapp: string;
+  categories: { slug: string; label: string }[];
+}
+
+const { product, whatsapp, categories } = Astro.props;
+const media = sortedMedia(product);
+const url = new URL(`/p/${product.slug}/`, Astro.site).href;
+const category = categories.find((c) => c.slug === product.category);
+const cover = media[0];
+const og = cover
+  ? new URL((await getImage({ src: mediaSrc(cover.id), width: 1200, format: "webp", inferSize: true })).src, Astro.site).href
+  : undefined;
+
+const cta = (variant?: string, price?: number | null) =>
+  waLink(
+    whatsapp,
+    waMessage({
+      product: product.name,
+      variant,
+      price: price === null || price === undefined ? undefined : formatPrice(price),
+      url,
+    }),
+  );
+---
+
+<Base
+  title={product.name}
+  description={product.description ?? `${product.name}, de Veky.`}
+  current="catalogo"
+  ogImage={og}
+>
+  <p class="crumb">
+    <a href="/catalogo/">Catálogo</a>
+    {category && <> · <a href={`/catalogo/#${category.slug}`}>{category.label}</a></>}
+  </p>
+  <article class="product">
+    <div class="gallery">
+      {media.map((m, i) => <Photo mediaId={m.id} alt={m.alt_text} sizes="(min-width: 52rem) 55vw, 95vw" eager={i === 0} />)}
+    </div>
+    <div>
+      <h1>{product.name}</h1>
+      <p class="price">{formatPrice(product.price_ars)}</p>
+      {product.description && <p>{product.description}</p>}
+
+      {
+        product.variants.length > 0 ? (
+          <section aria-labelledby="variantes">
+            <h2 id="variantes">Elegí tu favorita</h2>
+            <ul class="variants">
+              {product.variants.map((v) => {
+                const label = variantLabel(v);
+                const price = variantPrice(product, v);
+                return (
+                  <li>
+                    <div class="info">
+                      <strong>{label || product.name}</strong>
+                      <span>
+                        {formatPrice(price)} · <span class={`badge ${v.availability}`}>{AVAILABILITY_LABEL[v.availability]}</span>
+                      </span>
+                    </div>
+                    <a class="btn" href={cta(label || undefined, price)} rel="noopener">
+                      Consultar por WhatsApp<span class="sr-only"> por {label || product.name}</span>
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ) : (
+          <p>
+            <a class="btn" href={cta(undefined, product.price_ars)} rel="noopener">Consultar por WhatsApp</a>
+          </p>
+        )
+      }
+    </div>
+  </article>
+</Base>
+
+<style>
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+</style>

@@ -48,6 +48,9 @@
 | D6 | Contenido: LLM con salida estructurada para copy, selección de fotos y guiones, más **plantillas determinísticas** para flyers y reels. | Gratis, consistente con la marca, no consume cuota de generación de imagen. |
 | D7 | Instagram: **etapa posterior**. En el MVP el bot entrega el contenido listo y ella lo publica manualmente. | La publicación por API exige cuenta profesional; la conversión queda para más adelante. |
 | D8 | Dominio propio: más adelante, si ella se siente cómoda. | Prioridad gratis. |
+| D9 | Speech-to-text: Groq `whisper-large-v3`, sin pista de vocabulario. | Spike 1: 10 notas reales, 0 errores de API, ~450 ms de latencia, solo 3 diferencias menores de palabra frente a la lectura. Detalle en `spikes/whisper` (PR #2). |
+| D10 | Render de flyers y reels en el runner de **GitHub Actions** (repo público, minutos gratis). | Spike 3: el flyer con Satori no entra en los 10 ms de CPU de Workers (145–330 ms medidos en Node). Un reel de 24 s se renderiza en 7,5–12 s en Actions, cola de 1–3 s, y pasa los chequeos de Reels de Instagram. Detalle en `spikes/render`. Falta medir el disparo con `repository_dispatch` desde el bot. |
+| D11 | Visión: Gemini (primario) y Groq (respaldo), siempre **asíncrono con reintentos**; nombres de modelo configurables. | Spike 4: Gemini devolvió 503 en 13 de 29 intentos (latencia hasta 378 s) y Groq choca con 429 (8K TPM, máx. 3 imágenes por pedido). Calidad de textos buena pero genérica con cuadros de video: pedir una foto por producto y datos confirmados por ella. Detalle en `spikes/vision`. |
 
 ## 5. Stack de IA (verificado el 2026-11-16, con las salvedades de la sección 8)
 
@@ -55,7 +58,7 @@
 |---|---|---|
 | Entender mensajes y llamar herramientas | Groq `gpt-oss-120b` | OpenRouter `:free`, Gemini Flash-Lite |
 | Voz a texto (español) | Groq Whisper large-v3 | Whisper en Cloudflare Workers AI |
-| Visión (elegir fotos, describir producto) | Gemini free | Modelo de visión gratis en OpenRouter |
+| Visión (elegir fotos, describir producto) | Gemini free | Groq (modelo de visión), según D11. OpenRouter queda como tercer eslabón opcional, sin probar |
 | Textos en español | Groq `gpt-oss-120b` | Gemini Flash-Lite |
 
 - Con 20–100 pedidos/día los límites gratis sobran.
@@ -65,7 +68,7 @@
 ## 6. Infraestructura (límites verificados, planes gratis)
 
 - **Workers:** 10 ms de CPU por ejecución, 100k pedidos/día. El webhook debe responder rápido y delegar el trabajo pesado.
-- **D1:** 5 GB, 100k escrituras/día. **R2:** 10 GB, sin costo de descarga. **Cron Triggers:** 5 por cuenta (recordatorios y avisos). **Pages:** 500 builds/mes.
+- **D1:** 500 MB por base (5 GB en total por cuenta), 100k escrituras/día. **R2:** 10 GB, sin costo de descarga. **Cron Triggers:** 5 por cuenta (recordatorios y avisos). **Pages:** 500 builds/mes.
 - **Containers:** requieren plan de pago, descartados. **Browser Run:** 10 min/día gratis, solo como respaldo para flyers.
 - **Telegram:** el bot descarga hasta 20 MB y envía hasta 50 MB. Los mensajes son gratis. Los álbumes llegan como mensajes sueltos con un `media_group_id` en común, y hay que agruparlos.
 
@@ -104,7 +107,14 @@ GitHub Actions (repo privado) se descartó para el inicio porque el autor agotó
 - **Render:** latencia y tiempos reales sin medir en ninguna opción.
 - **Adopción:** el éxito depende de que ella use el bot. Tono, brevedad y proactividad son parte del producto, no detalles.
 
-## 9. Spikes propuestos (pruebas cortas, antes del diseño)
+## 9. Spikes (resueltos el 2026-11-17)
+
+Los cuatro spikes están mergeados en `develop` bajo `spikes/`. Resumen en D9, D10 y D11 y en estos hallazgos:
+
+- Telegram: los videos del celular llegan como `document`, no como `video`; los videos reales de feria pesan ~9 MB, lejos del tope de 20 MB; el bot puede iniciar la conversación sin que ella escriba antes; las notas de voz se descargan bien.
+- La agrupación de álbumes usa memoria del proceso: en Workers necesita estado compartido (Durable Object o D1).
+
+Propuesta original, para referencia:
 
 1. **Whisper:** probar Groq con ~10 notas de voz reales de ella.
 2. **Render:** medir un flyer y un reel de prueba en las opciones A y B. Verificar el límite de CPU en Workers.
@@ -114,6 +124,7 @@ GitHub Actions (repo privado) se descartó para el inicio porque el autor agotó
 ## 10. Ideas a priorizar (sin decidir)
 
 - Agenda pública de ferias ("Esta semana estoy en…") y post automático de aviso antes de cada feria.
+- **Calculadora de precios** (módulo agregado el 2026-11-17, al final del plan): ayuda a ella a calcular cuánto cobrar por un producto a partir del costo de materiales, el tiempo de trabajo, costos de feria y un margen; se maneja conversando con el bot ("¿cuánto cobro por este neceser?") y guarda sus costos de materiales para reutilizarlos.
 - Stock por voz ("vendí 2 neceseres").
 - Registro de encargos personalizados.
 - Resumen semanal por Telegram.
@@ -123,10 +134,56 @@ GitHub Actions (repo privado) se descartó para el inicio porque el autor agotó
 
 ## 11. Pendientes del autor
 
-- [ ] Identidad de marca (logo, colores, tipografía, nombre exacto).
+- [x] Identidad de marca recibida (ver sección 13). Falta extraer los archivos del logo en versión vectorial o PNG.
 - [ ] Confirmar si ella ya usa Telegram.
 - [ ] Más adelante: decidir cuándo convertir el Instagram a cuenta profesional.
 
 ## 12. Próximo paso
 
 Elegir qué spikes hacer primero y recién después armar el plan de diseño y las etapas de implementación. Las investigaciones se delegan en subagentes de nivel bajo (Haiku) y las decisiones las toma el autor.
+
+## 13. Identidad de marca (del brandbook recibido el 2026-11-17)
+
+- **Nombre de la marca: "Veky"** (con y griega). El repo y el bot usan "veki" por el nombre del proyecto; el contenido público debe decir **Veky**.
+- **Producto:** accesorios textiles artesanales (carteras, riñoneras, neceseres, etc.) con diseño creativo y colorido.
+- **Público:** personas de 20 a 40 años que buscan productos únicos que reflejen su personalidad. Es una marca emergente que creció por boca a boca; el objetivo es ganar visibilidad en redes.
+- **Personalidad y tono:** alegre, cálida, cercana, creativa, espontánea. Rechaza el minimalismo y la falta de personalidad. Los textos que genere la IA deben sonar así.
+- **Paleta:** lila `#AC9FD6` (principal), verde `#C3D787` (secundario), celeste `#A3D3DD` (secundario).
+- **Tipografía:** Poppins (Regular para cuerpos de texto; el brandbook completo define las demás variantes).
+- **Logo:** isologo principal con una tijera integrada y tipografía redondeada, en lila. Hay variante horizontal (para etiquetas), versiones positiva y negativa, y mockups de aplicaciones.
+- **Estilo de anuncios:** escenas exageradas (hipérbole) y metáforas que muestran los accesorios como parte de la historia de quien los usa.
+- **Fuente:** PDF privado en `samples/` (gitignored; contiene datos personales de la diseñadora). No se versiona.
+
+## 14. Decisiones de producto Q1–Q10 (2026-11-17)
+
+Respuestas del autor a las preguntas abiertas de `docs/02-diseno.md` §10: se adoptan las recomendaciones.
+
+| # | Decisión |
+|---|---|
+| Q1 | Ella usará Telegram. Se instala con ella y hacen el `/start` juntos. |
+| Q2 | Bot nuevo de producción, separado del de los spikes. |
+| Q3 | El número de WhatsApp se publica en la web (canal de venta). Usar WhatsApp Business si lo tiene. |
+| Q4 | La web no muestra cantidades: solo Disponible / Últimas unidades / Por encargo. |
+| Q5 | Gemini ve fotos de producto; el chat no va a Gemini. |
+| Q6 | Silencio de 21 a 9 h; los domingos solo aviso de feria. |
+| Q7 | Categorías iniciales: carteras, riñoneras, neceseres, cartucheras, otros. Ella las ajusta. |
+| Q8 | Precios públicos; "consultar" solo si ella no quiere mostrarlo. |
+| Q9 | Encargos personalizados después de la etapa 4. |
+| Q10 | Sitio en `veky.pages.dev` si está libre. |
+
+## 15. Límites reales de Groq, plan gratis (consola, 2026-11-17)
+
+Confirmados por el autor desde `console.groq.com`. Cierran el riesgo R3.
+
+| Modelo | RPM | RPD | TPM | TPD |
+|---|---|---|---|---|
+| `openai/gpt-oss-120b` | 30 | 1K | 8K | 200K |
+| `openai/gpt-oss-20b` | 30 | 1K | 8K | 200K |
+| `qwen/qwen3.8-27b` | 30 | 1K | 8K | 200K |
+| `openai/gpt-oss-safeguard-20b` | 3 | 1K | 2K | 200K |
+| `whisper-large-v3` / `-turbo` | 20 | 2K | n/a | n/a (7,2K s de audio por hora, 28,8K s por día) |
+
+- Los topes son por modelo: la cadena de chat de tres modelos suma ~600K tokens/día; el presupuesto por defecto de 200K por modelo del contador (T22/R3) es el correcto.
+- `qwen/qwen3.8-27b` es también el modelo de visión de respaldo (D11): visión y chat de respaldo comparten sus 200K diarios.
+- Whisper: 28,8K s de audio por día equivalen a 8 horas, muy por encima del uso esperado (decenas de notas de ~10 s).
+- `gpt-oss-safeguard-20b` (2K TPM) no sirve para el chat y queda fuera de la cadena.
