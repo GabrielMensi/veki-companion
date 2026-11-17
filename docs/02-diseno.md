@@ -480,6 +480,38 @@ Si `provider_usage` del día llega al 80 % del tope configurado de una capa, se 
 
 ---
 
+#### 4.6.1 Llamadas por turno y riesgo de TPM (medido el 2026-11-17, tras #25)
+
+El tope que muerde en el plan gratis de Groq es **tokens por minuto (TPM)**, no el diario (`00` §15: 8 K TPM por modelo, 200 K TPD).
+
+**Costo de una llamada.** Prompt fijo 568 tokens + herramientas 1.897 = **2.465 fijos** (presupuesto R3: 2.500). A eso se suman el resumen de catálogo (hasta 50 productos, ~700 tokens estimados al tope), el historial (6 mensajes, ~250 estimados) y el mensaje nuevo: **~3,5 K de entrada** por llamada (medido en la evaluación real; la salida es de 50–300 tokens). Una segunda llamada del mismo turno reenvía todo más la llamada y el resultado de la herramienta: **~3,8–4,2 K**.
+
+**Llamadas por turno** (de `packages/core/src/agent/loop.ts`; tope `MAX_LLM_CALLS = 3`; `responder` y una escritura con vista previa terminan el turno):
+
+| Tipo de turno | Llamadas | Entrada total aprox. |
+|---|---|---|
+| Charla, pregunta aclaratoria, escritura con datos completos (`crear_*`, `deshacer`) | 1 | ~3,5 K |
+| `actualizar_borrador` + `responder` en el mismo lote | 1 | ~3,5 K |
+| `actualizar_borrador`, luego `responder` | 2 | ~7,3 K |
+| Cambiar precio o stock (`buscar_productos` → `editar_producto` / `cambiar_stock`) | 2 | ~7,5 K |
+| Consulta de catálogo o agenda (`buscar_productos` / `ver_*` → `responder`) | 2 | ~7,5 K |
+| Peor caso: reintento por modelo sin herramienta, `responder` rechazado o pista de `bad_output` | 3 (tope) | ~11–12 K |
+
+Un turno típico hace **1–2 llamadas (~3,5–7,5 K tokens)**; un turno de peor caso supera el TPM de un solo modelo (8 K).
+
+**Riesgo.** Con la cadena de 3 modelos (`gpt-oss-120b`, `gpt-oss-20b`, `qwen3.8-27b`, cada uno con su cupo de 8 K) caben ~24 K tokens por minuto: unas 6 llamadas, ~3 turnos de dos llamadas. Una usuaria que escribe a mano espacia sus mensajes y casi nunca lo toca. Se rompe con **ráfagas**: un álbum de fotos y un audio seguidos, dos mensajes en pocos segundos, o la evaluación (`EVAL_PAUSE_MS=30000`). En la cadena, un 429 deja el modelo en cooldown por `retry-after` y el turno cae al siguiente; si los tres están agotados la excepción sube y la cola reintenta (no se pierde el mensaje, solo se demora ≤ 1 minuto). El tope diario no es el problema: ~6 K por turno ≈ 33 turnos por modelo y ~100 en la cadena, sobre el uso alto de 30 interacciones por día (§4.6).
+
+**Mitigaciones sin costo (recomendación; no implementadas, requieren aprobación):**
+
+1. **Historial más corto.** `chat.history_length` de 6 a 4 (se cambia en `settings`, sin desplegar): ahorra ~80 tokens por llamada. Poco, pero gratis.
+2. **Menos llamadas.** Que `editar_producto` y `cambiar_stock` acepten nombre/variante y resuelvan el id en el servidor (hoy hace falta `buscar_productos` primero): los turnos de edición pasan de 2 llamadas a 1 (~−3,8 K). Es el ahorro más grande.
+3. **`tool_choice: "required"`** en la primera llamada (Groq lo soporta) y `responder` obligatorio después de una lectura: evita la llamada perdida cuando el modelo contesta en texto y reduce los `bad_output`. Hay que repetir la evaluación porque cambia el comportamiento.
+4. **Herramientas por estado.** Mandar solo las que aplican (sin `actualizar_borrador` si no hay borrador, sin `deshacer` si no hay nada que deshacer): las herramientas son el 77 % del prompt fijo, así que cada una que se omite ahorra ~150–250 tokens por llamada.
+5. **Resumen de catálogo compacto:** solo nombre y id corto, sin variantes, hasta que el modelo pida el detalle (ahorra hasta ~400 tokens con 50 productos).
+6. **Suavizar ráfagas:** la cola ya procesa de a un update (`max_concurrency = 1`); una pausa de ~5 s entre updates del mismo chat evita juntar dos turnos en el mismo minuto.
+
+Con 2 y 3 un turno típico baja a ~1 llamada (~3,5 K) y el peor caso deja de superar un solo modelo.
+
 ## 5. Sitio web
 
 ### 5.1 Páginas (Astro, estático, D3)
