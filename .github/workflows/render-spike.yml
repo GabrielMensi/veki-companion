@@ -26,6 +26,10 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: spikes/render/package-lock.json
+      - name: Install ffmpeg (not preinstalled on ubuntu-latest)
+        working-directory: .
+        run: |
+          time (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-dejavu-core bc)
       - name: Install dependencies
         run: npm ci
       - name: Runner info

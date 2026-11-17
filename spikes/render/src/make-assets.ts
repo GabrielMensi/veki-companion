@@ -25,5 +25,5 @@ const r = spawnSync("ffmpeg", [
   "-f", "lavfi", "-i", "testsrc2=size=1080x1920:rate=30:duration=4",
   "-c:v", "libx264", "-pix_fmt", "yuv420p", `${dir}/clip-1.mp4`,
 ], { stdio: "inherit" });
-if (r.status !== 0) throw new Error("ffmpeg clip generation failed");
+if (r.status !== 0) throw new Error(`ffmpeg clip generation failed: ${r.error ?? r.status}`);
 console.log(`assets written to ${dir}`);
