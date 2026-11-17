@@ -1,0 +1,50 @@
+---
+import { getImage } from "astro:assets";
+import Base from "../layouts/Base.astro";
+import ProductCard from "../components/ProductCard.astro";
+import FairCard from "../components/FairCard.astro";
+import { loadCatalog, sortProducts, sortedMedia, upcomingFairs } from "../lib/catalog";
+import { mediaSrc } from "../lib/media";
+import { waLink } from "@veki/core";
+
+const catalog = await loadCatalog();
+const featured = sortProducts(catalog.products).slice(0, 6);
+const nextFair = upcomingFairs(catalog)[0];
+const cover = featured[0] && sortedMedia(featured[0])[0];
+const og = cover
+  ? new URL((await getImage({ src: mediaSrc(cover.id), width: 1200, format: "webp", inferSize: true })).src, Astro.site).href
+  : undefined;
+const wa = waLink(catalog.whatsapp_number, "¡Hola Veky! Quería consultarles algo que vi en la web.");
+---
+
+<Base title="Veky" current="inicio" ogImage={og}>
+  <section class="hero">
+    <h1>Accesorios con mucho color y cero aburrimiento</h1>
+    <p>Carteras, riñoneras y neceseres textiles hechos a mano, para que lleves tu personalidad a todos lados.</p>
+    <p><a class="btn" href="/catalogo/">Mirá el catálogo</a></p>
+  </section>
+
+  <section class="section" aria-labelledby="destacados">
+    <h2 id="destacados">Para enamorarte</h2>
+    <ul class="grid">
+      {featured.map((p, i) => <ProductCard product={p} eager={i < 2} />)}
+    </ul>
+    <p><a href="/catalogo/">Ver todo el catálogo</a></p>
+  </section>
+
+  {
+    nextFair && (
+      <section class="section" aria-labelledby="feria">
+        <h2 id="feria">Encontranos en la próxima feria</h2>
+        <FairCard fair={nextFair} />
+        <p><a href="/agenda/">Ver toda la agenda</a></p>
+      </section>
+    )
+  }
+
+  <section class="section" aria-labelledby="contacto">
+    <h2 id="contacto">¿Dudas? Escribinos</h2>
+    <p>Respondemos por WhatsApp: consultá por un producto, un color o un pedido especial.</p>
+    <p><a class="btn sec" href={wa} rel="noopener">Hablanos por WhatsApp</a></p>
+  </section>
+</Base>

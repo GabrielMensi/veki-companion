@@ -1,0 +1,29 @@
+---
+import type { Fair } from "../lib/catalog-schema";
+import { formatFairDate } from "../lib/format";
+
+interface Props {
+  fair: Fair;
+  heading?: "h2" | "h3";
+}
+
+const { fair, heading: H = "h3" } = Astro.props;
+---
+
+<div class="fair">
+  <H>{fair.name}</H>
+  <p><strong>{formatFairDate(fair.starts_at, fair.ends_at)}</strong></p>
+  <p>{fair.place}{fair.address ? ` · ${fair.address}` : ""}</p>
+  {fair.maps_url && <p><a href={fair.maps_url} rel="noopener">Ver en el mapa<span class="sr-only"> de {fair.name}</span></a></p>}
+</div>
+
+<style>
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+</style>
