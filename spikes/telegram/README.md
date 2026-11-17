@@ -36,12 +36,16 @@ npm run check    # tsc --noEmit
 
 | Test | Result (OK / fail) | Notes |
 |---|---|---|
-| /start + chat.json | | |
-| Album grouped into one reply | | |
-| Buttons Sí / Cambiar / Cancelar edit message | | |
-| Voice note (size, duration logged) | | |
-| Short video | | |
-| Video > 20 MB handled | | |
+| /start + chat.json | OK | User test |
+| Album grouped into one reply | OK | User test |
+| Buttons Sí / Cancelar edit message | OK | User test |
+| Button Cambiar | Not implemented, on purpose | Needs an LLM, out of scope for this spike |
+| Single photo | OK | User test |
+| Voice note (size, duration logged) | OK | Received and downloaded |
+| Video (short and ~24.5 MB, camera and gallery) | Fail, being fixed | Bot answered the generic fallback; handler now covers video, document video/*, video_note, animation and media groups, and logs unknown shapes. Re-test needed |
+| Video > 20 MB handled | Pending re-test | Simulated OK (`npm run test:sim`) |
 | Unexpected update (text/sticker) | | |
-| `npm run ping` with bot stopped | | |
+| `npm run ping` with bot stopped | Sent | User is checking |
 | Telegram video size limit in real fair videos | | |
+
+Offline simulation (no network, no phone): `npm run test:sim`.
