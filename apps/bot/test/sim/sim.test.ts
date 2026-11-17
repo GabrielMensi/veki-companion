@@ -11,10 +11,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import worker from "../../src/index";
 import type { Env } from "../../src/env";
 import { handleBatch, type QueueMessageLike } from "../../src/queues";
-import { handleAlbumFlush } from "../../src/jobs/album-flush";
+import { handleAlbumFlush, setAgentEntry } from "../../src/jobs/album-flush";
 import { D1ConversationStore } from "../../src/actions/conversation-store";
 import { d1ToolHost } from "../../src/actions/pending";
-import { setRuntimeOverride } from "../../src/runtime";
+import { albumEntry, setRuntimeOverride } from "../../src/runtime";
 import { FakeChatProvider, FakeSttProvider, copy, copyAcciones } from "@veki/core";
 import { createStubBotApi, type BotApiError } from "./stub-bot-api";
 import mediaSingle from "./fixtures/media-single.json";
@@ -378,6 +378,27 @@ describe("simulador: escalacion al admin (2 malentendidos seguidos)", () => {
       expect(await count("event_log", "type='agent.escalate'")).toBe(1);
     } finally {
       restore();
+    }
+  });
+  it("album.flush: si el agente escala tambien avisa al admin (sin texto, con el mismo tope de 30 min)", async () => {
+    setAgentEntry(albumEntry);
+    const testEnv = { ...makeEnv([]), ALLOWED_CHAT_IDS: `${CHAT_ID}:owner,${ADMIN}:admin` } as Env;
+    setRuntimeOverride((e) => ({ chat: confusedChat(), stt: new FakeSttProvider([{ text: "x", lowConfidence: false }]), store: new D1ConversationStore(e.DB), host: d1ToolHost(e) }));
+    const botApi = createStubBotApi();
+    const restore = botApi.install();
+    try {
+      for (const gid of ["ga-1", "ga-2", "ga-3", "ga-4"]) {
+        await db.prepare("INSERT INTO inbox_groups (media_group_id, chat_id, item_count, first_at, last_at, status) VALUES (?, ?, 1, 1, 1, 'open')").bind(gid, CHAT_ID).run();
+        expect(await handleAlbumFlush({ gid }, testEnv, Date.now() + 60_000)).toBe("delivered");
+      }
+      const out = botApi.calls.filter((c) => c.method === "sendMessage").map((c) => ({ chat: c.payload.chat_id as number, text: String(c.payload.text) }));
+      expect(await count("event_log", "type='agent.escalate'")).toBe(2); // 2 malentendidos por escalacion: turnos 2 y 4
+      const toAdmin = out.filter((m) => m.chat === ADMIN);
+      expect(toAdmin).toHaveLength(1); // tope: la segunda escalacion no repite
+      expect(toAdmin[0]!.text).not.toMatch(/media_ids|foto/);
+    } finally {
+      restore();
+      setAgentEntry(albumEntry);
     }
   });
 });
