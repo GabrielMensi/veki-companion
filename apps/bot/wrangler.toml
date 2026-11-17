@@ -35,8 +35,5 @@ max_concurrency = 2
 crons = ["*/15 * * * *", "0 9 * * *"]
 
 # Secrets (wrangler secret), leídos por el código hoy: TELEGRAM_BOT_TOKEN, TG_WEBHOOK_SECRET, DEPLOY_HOOK_URL,
-# GROQ_API_KEY (y GEMINI_API_KEY, declarada en env.ts). Locales en .dev.vars. Ver ops/DEPLOY.md, paso 6.
-[vars]
-# Allowlist de chats: "id:owner,id:admin". Vacía en el repo (los ids son datos personales de un repo público);
-# se completa solo en el despliegue, según ops/DEPLOY.md, paso 7.
-ALLOWED_CHAT_IDS = ""
+# GROQ_API_KEY, ALLOWED_CHAT_IDS (y GEMINI_API_KEY, declarada en env.ts). No hay [vars]: ALLOWED_CHAT_IDS es secret porque
+# los chat ids son datos personales de un repo público. Locales en .dev.vars (gitignored). Ver ops/DEPLOY.md, pasos 6 y 7.

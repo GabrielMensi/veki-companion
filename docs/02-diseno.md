@@ -358,7 +358,7 @@ Fotos: 3 (portada: la primera)
 
 ### 3.5 Acceso
 
-- Allowlist en `ALLOWED_CHAT_IDS` (var del Worker): su chat (`role=owner`) y el de Gabriel (`role=admin`). Cualquier otro chat: se registra `event_log` `access.denied` (sin contenido) y no se responde.
+- Allowlist en `ALLOWED_CHAT_IDS` (secret del Worker, no var: los chat ids son datos personales): su chat (`role=owner`) y el de Gabriel (`role=admin`). Cualquier otro chat: se registra `event_log` `access.denied` (sin contenido) y no se responde.
 - El chat de admin usa el mismo agente más comandos `/estado`, `/log`, `/deshacer <id>`, `/reconstruir`, `/pausa` (§6.2).
 
 ### 3.6 Proactividad
@@ -569,6 +569,7 @@ Con 2 y 3 un turno típico baja a ~1 llamada (~3,5 K) y el peor caso deja de sup
 | `TELEGRAM_BOT_TOKEN` | `wrangler secret` | Bot de producción (distinto del de los spikes) |
 | `TG_WEBHOOK_SECRET` | `wrangler secret` y `setWebhook(secret_token)` | Se valida en cada update ([setWebhook](https://core.telegram.org/bots/api#setwebhook)) |
 | `GROQ_API_KEY`, `GEMINI_API_KEY` | `wrangler secret` | |
+| `ALLOWED_CHAT_IDS` | `wrangler secret` | `id:owner,id:admin`. Datos personales en un repo público: nunca en `[vars]` ni en un archivo versionado |
 | `GITHUB_DISPATCH_TOKEN` | `wrangler secret` | Fine-grained PAT, **solo este repo**, permiso **Actions: write** (y Metadata: read obligatorio). Vence a 1 año; recordatorio a Gabriel 14 días antes |
 | `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | `wrangler secret` | Token R2 limitado al bucket `veki-media`, Object Read & Write (para prefirmar) |
 | `DEPLOY_HOOK_URL` | `wrangler secret` | Quien la tenga puede disparar builds: tratarla como secreto |

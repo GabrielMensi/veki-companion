@@ -32,7 +32,7 @@ export interface Env {
   GROQ_API_KEY?: string;
   /** Secret (`wrangler secret`): clave de Gemini (respaldo del chat). */
   GEMINI_API_KEY?: string;
-  /** Var del Worker: lista `id:rol` separada por comas, p. ej. `111:owner,222:admin`. Un id suelto es `owner`. */
+  /** Secret (`wrangler secret`; datos personales, no va en `[vars]`): lista `id:rol` separada por comas, p. ej. `111:owner,222:admin`. Un id suelto es `owner`. */
   ALLOWED_CHAT_IDS: string;
 }
 

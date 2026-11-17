@@ -135,7 +135,8 @@ Secretos que el código lee hoy (`apps/bot/src/env.ts`):
 | `TELEGRAM_BOT_TOKEN` | Bloque `PROD` del `.env` | Sí |
 | `TG_WEBHOOK_SECRET` | Lo genera este paso (abajo) | Sí |
 | `GROQ_API_KEY` | Bloque `PROD` del `.env` | Sí (chat y voz) |
-| `GEMINI_API_KEY` | Bloque `PROD` del `.env` | No. Está declarada en `env.ts`, pero hoy el bot no la pasa a ningún proveedor; se carga cuando se conecte el respaldo |
+| `GEMINI_API_KEY` | Bloque `PROD` del `.env` | **No se carga en E1.** Está declarada en `env.ts`, pero hoy el bot no la pasa a ningún proveedor; se carga cuando se conecte el respaldo |
+| `ALLOWED_CHAT_IDS` | Línea `ALLOWED_CHAT_IDS=` del `.env` del árbol principal (paso 7) | Sí |
 | `DEPLOY_HOOK_URL` | Paso 9 (Pages) | Sí, para que el sitio se reconstruya. Sin él, el cron se salta el build |
 
 Ejemplos:
@@ -170,16 +171,22 @@ Si ya existe una línea `TG_WEBHOOK_SECRET=` en el `.env`, editala en lugar de a
 Formato: `id:rol`, separados por coma. `owner` es ella; `admin` es Gabriel (recibe los avisos y el resumen diario, y tiene los
 comandos de admin). Un id sin rol es `owner`.
 
-Editá `apps/bot/wrangler.toml`, en `[vars]`:
+Es un **secret**, no una var del Worker: el repo es público y los chat ids son datos personales. Ponelo en el `.env` del
+árbol principal (gitignored), sin escribirlo en ningún archivo versionado:
 
-```toml
-ALLOWED_CHAT_IDS = "<id-de-ella>:owner,<id-de-gabriel>:admin"
+```sh
+ALLOWED_CHAT_IDS=<id-de-ella>:owner,<id-de-gabriel>:admin
 ```
 
-> **Cuidado:** el repo es público y los chat ids son datos personales. **No commitees este cambio.** Hacé el deploy
-> (paso 8) con el archivo editado y después devolvelo a su estado de git antes de cualquier commit
-> (`git checkout -- apps/bot/wrangler.toml`; esto solo funciona si el `database_id` del paso 2 ya está commiteado).
-> Ver el riesgo R-1 al final.
+Cargalo igual que los otros secretos (paso 6), por stdin y sin imprimirlo:
+
+```sh
+read -rs ALLOWED_CHAT_IDS && export ALLOWED_CHAT_IDS             # pegá el valor de la línea del .env
+printf '%s' "$ALLOWED_CHAT_IDS" | npx wrangler secret put ALLOWED_CHAT_IDS
+unset ALLOWED_CHAT_IDS
+```
+
+Para desarrollo local, la misma línea va en `apps/bot/.dev.vars` (gitignored).
 
 Un chat que no está en la lista no recibe respuesta (`docs/02-diseno.md` §3.5): el Worker responde 200 y no encola nada.
 
@@ -323,7 +330,7 @@ Lo que tiene que aportar Gabriel (o ella), con el paso en el que se usa:
 
 | Dato | Dónde se usa | Notas |
 |---|---|---|
-| Chat id de ella (`owner`) y de Gabriel (`admin`) | Paso 7 | Datos personales: no van al repo ni al chat |
+| Chat id de ella (`owner`) y de Gabriel (`admin`) | Paso 7 (secret) | Datos personales: no van al repo ni al chat |
 | Número público de WhatsApp (solo dígitos, con código de país) | Paso 5 | Se inyecta en el archivo temporal; no se commitea |
 | `TELEGRAM_BOT_TOKEN` (bloque `PROD`) | Pasos 6 y 10 | Nunca se pega |
 | `GROQ_API_KEY` (bloque `PROD`) | Paso 6 | Nunca se pega |
@@ -332,9 +339,8 @@ Lo que tiene que aportar Gabriel (o ella), con el paso en el que se usa:
 
 ## Riesgos abiertos
 
-- **R-1. `ALLOWED_CHAT_IDS` en un repo público.** El runbook pide editar `wrangler.toml` localmente para no commitear los ids.
-  Es frágil: un `git add -A` lo commitea. La alternativa más segura es sacar esa variable de `[vars]` y cargarla como secret.
-  Eso cambia `wrangler.toml` y requiere decisión de Gabriel.
+- **R-1. `ALLOWED_CHAT_IDS` en un repo público.** Resuelto: es un secret (pasos 6 y 7), no está en `wrangler.toml` ni en ningún
+  archivo versionado.
 - **R-2. Fixture silencioso.** Sin `CATALOG_URL` en Pages, el sitio muestra datos de prueba sin error (ver paso 9).
 - **R-3. Número placeholder.** Si `whatsapp_number` queda `CHANGE-ME`, el catálogo no pasa el schema. Verificalo en el paso 11.
 - **R-4. CPU del consumidor.** Se mide en el paso 11 (punto 5). Si supera el límite de Free, hay que revisar el diseño (`docs/02-diseno.md` §8, R4).
