@@ -70,6 +70,17 @@ describe("GroqChat", () => {
     await expect(c(new TypeError("boom"))).rejects.toMatchObject({ kind: "unavailable" });
   });
 
+  it("400 tool_use_failed (el modelo armó mal la herramienta) -> bad_output con status y código, no fatal", async () => {
+    const body = { error: { message: "x".repeat(400), type: "invalid_request_error", code: "tool_use_failed" } };
+    const f = stub(new Response(JSON.stringify(body), { status: 400 }));
+    await expect(new GroqChat({ apiKey: "k", model: "m", fetch: f }).complete(req)).rejects.toMatchObject({ kind: "bad_output", status: 400, code: "tool_use_failed" });
+  });
+
+  it("otro 400 sigue siendo fatal y conserva el código", async () => {
+    const f = stub(new Response(JSON.stringify({ error: { code: "invalid_api_key" } }), { status: 400 }));
+    await expect(new GroqChat({ apiKey: "k", model: "m", fetch: f }).complete(req)).rejects.toMatchObject({ kind: "fatal", status: 400, code: "invalid_api_key" });
+  });
+
   it("error messages never contain the api key", async () => {
     const f = stub(new Response("nope", { status: 500 }));
     const e = (await new GroqChat({ apiKey: "SECRET-KEY", model: "m", fetch: f }).complete(req).catch((x) => x)) as Error;
@@ -141,6 +152,15 @@ describe("chain: fallback and cooldown", () => {
     expect((await chain.complete(req)).text).toBe("B");
     expect(fallbacks).toEqual(["a:m/unavailable"]);
     expect(usage.deltas.find((d) => d.providerModel === "a:m")!.errors).toBe(1);
+  });
+
+  it("a tool_use_failed on one turn does not put the model in cooldown", async () => {
+    const bad = new ProviderError("bad_output", "x", { status: 400, code: "tool_use_failed" });
+    const a = new FakeChatProvider([bad]), b = new FakeChatProvider([bad]);
+    const { chain, state } = setup(a, b);
+    await expect(chain.complete(req)).rejects.toMatchObject({ kind: "bad_output", status: 400, code: "tool_use_failed" });
+    expect((await state.get("a:m")).cooldownUntil).toBeNull();
+    expect((await state.get("b:m")).cooldownUntil).toBeNull();
   });
 
   it("falls back on bad_output without opening the breaker", async () => {

@@ -114,23 +114,23 @@ export const toolKinds: Record<ToolName, ToolKind> = {
 
 /** Descripciones cortas a propósito: cada token cuenta (presupuesto ≤ 2.500 con el system prompt). */
 const descriptions: Record<ToolName, string> = {
-  responder: "Único modo de hablarle a la usuaria. Una sola pregunta.",
-  buscar_productos: "Busca productos por nombre, diseño o color.",
+  responder: "Único modo de hablarle a la usuaria. Solo para preguntar lo que falta o contestar; si pidió guardar o cambiar algo, llamá antes la herramienta que corresponde.",
+  buscar_productos: "Busca productos por nombre, diseño o color. Devuelve ids de producto y de variante. Obligatoria antes de editar o tocar stock.",
   ver_producto: "Ficha de un producto: variantes, stock, fotos.",
   ver_agenda: "Ferias de un rango (por defecto, próximos 30 días).",
   ver_contenido: "Estado de los flyers/reels en curso.",
-  actualizar_borrador: "Guarda datos del producto o feria en armado. No confirma ni escribe en el catálogo.",
-  crear_producto: "Pide confirmar el alta del borrador (debe estar completo).",
-  editar_producto: "Cambia datos de un producto (pide confirmación).",
+  actualizar_borrador: "Obligatoria cuando manda fotos o cuenta datos de un producto o feria nuevos (nombre, precio, categoría, fechas). Guarda lo que dijo; no escribe en el catálogo.",
+  crear_producto: "Obligatoria cuando el borrador está completo: arma la vista previa para que ella confirme.",
+  editar_producto: "Cambia nombre, precio, descripción, categoría o estado de un producto (pide confirmación). Usá el id de buscar_productos.",
   editar_variantes: "Agrega o archiva variantes (pide confirmación).",
-  cambiar_stock: "Ajusta stock de una variante con delta o fijar.",
+  cambiar_stock: "Ventas, reposición o ajuste de stock de una variante (pide confirmación). Venta: delta negativo, motivo venta. Usá el id de variante de buscar_productos.",
   agregar_fotos: "Suma fotos a un producto.",
   crear_feria: "Crea una feria. Fechas hora Argentina.",
   editar_feria: "Cambia datos de una feria.",
   cancelar_feria: "Cancela una feria.",
   pedir_contenido: "Encarga un flyer, carrusel o reel.",
   posponer_aviso: "Pospone o apaga un aviso.",
-  deshacer: "Deshace una acción (por defecto la última).",
+  deshacer: "Obligatoria cuando pide deshacer, volver atrás o anular. Sin argumentos deshace la última acción: no mandes accion_id salvo que ella indique una.",
 };
 
 export const READ_TOOLS = (Object.keys(toolKinds) as ToolName[]).filter((n) => toolKinds[n] === "read");

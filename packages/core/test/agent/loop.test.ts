@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FakeChatProvider } from "../../src/providers";
+import { FakeChatProvider, ProviderError } from "../../src/providers";
 import { copy, emptyState, runAgent, nextMissingField, applyDraftUpdate, type AgentState } from "../../src";
 import { call, FakeHost, say, turn } from "./helpers";
 
@@ -150,5 +150,49 @@ describe("lecturas e historial", () => {
 
   it("si el proveedor falla, la excepción sube (la cola reintenta)", async () => {
     await expect(run([new Error("boom")]).p).rejects.toThrow("boom");
+  });
+});
+
+describe("orden de herramientas en una misma respuesta", () => {
+  it("responder primero y la escritura detrás: la escritura se ejecuta igual y manda la vista previa", async () => {
+    const d = applyDraftUpdate(null, "producto", { name: "Riñonera Girasol", price_ars: 12500, category: "riñoneras" }, ["m1"]);
+    const { host, p } = run([turn(call("responder", { texto: "Listo, ya lo cargué." }), call("crear_producto", {}))], { ...emptyState(), draft: d });
+    const res = await p;
+    expect(host.pending).toHaveLength(1);
+    expect(res.output.pendingActionId).toBe("pa1");
+    expect(res.llmCalls).toBe(1);
+  });
+
+  it("responder primero y el borrador detrás: el borrador se guarda", async () => {
+    const res = await run([turn(call("responder", { texto: "¿Cómo se llama?" }), call("actualizar_borrador", { tipo: "producto", campos: { price_ars: 12000 } }))]).p;
+    expect(res.state.draft?.campos.price_ars).toBe(12000);
+    expect(res.output.texto).toBe("¿Cómo se llama?");
+  });
+
+  it("responder junto a una lectura se descarta: el modelo tiene que ver el resultado antes", async () => {
+    const { chat, p } = run([
+      turn(call("responder", { texto: "Tenés una." }), call("buscar_productos", { consulta: "girasol" })),
+      say("Tenés una Riñonera Girasol."),
+    ]);
+    const res = await p;
+    expect(res.output.texto).toBe("Tenés una Riñonera Girasol.");
+    expect(res.llmCalls).toBe(2);
+    expect(chat.requests).toHaveLength(2);
+  });
+});
+
+describe("llamada a herramienta mal armada por el modelo", () => {
+  it("bad_output: un reintento con pista y sigue", async () => {
+    const { chat, p } = run([new ProviderError("bad_output", "x", { status: 400, code: "tool_use_failed" }), turn(call("deshacer", {}))]);
+    const res = await p;
+    expect(res.output.pendingActionId).toBe("pa1");
+    expect(res.llmCalls).toBe(2);
+    expect(chat.requests).toHaveLength(2);
+    expect(JSON.stringify(chat.requests[1]!.messages)).toContain("no era válida");
+  });
+
+  it("si vuelve a fallar, la excepción sube (la cola reintenta)", async () => {
+    const e = new ProviderError("bad_output", "x", { status: 400, code: "tool_use_failed" });
+    await expect(run([e, e]).p).rejects.toBe(e);
   });
 });

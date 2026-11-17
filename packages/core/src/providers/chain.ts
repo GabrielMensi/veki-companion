@@ -76,7 +76,7 @@ export async function runChain<P, R>(
     }
   }
   const msg = last ? `all providers failed; last: ${last.message}` : "all providers are in cooldown";
-  throw new ProviderError(last?.kind ?? "unavailable", msg, { retryAfterS: soonestRetryS });
+  throw new ProviderError(last?.kind ?? "unavailable", msg, { retryAfterS: soonestRetryS, status: last?.status, code: last?.code });
 }
 
 export class ChatChain implements ChatProvider {
