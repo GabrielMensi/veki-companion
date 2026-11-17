@@ -1,0 +1,131 @@
+{
+  "generated_at": 1794000000000,
+  "whatsapp_number": "5491100000000",
+  "categories": [
+    { "slug": "carteras", "label": "Carteras" },
+    { "slug": "rinoneras", "label": "Riñoneras" },
+    { "slug": "neceseres", "label": "Neceseres" },
+    { "slug": "cartucheras", "label": "Cartucheras" },
+    { "slug": "otros", "label": "Otros" }
+  ],
+  "products": [
+    {
+      "id": "p-01",
+      "slug": "rinonera-girasol",
+      "name": "Riñonera Girasol",
+      "category": "rinoneras",
+      "description": "Una riñonera que llega con el verano puesto. Tela estampada, cierre firme y lugar para todo lo importante.",
+      "price_ars": 12500,
+      "featured": true,
+      "updated_at": 1793900000000,
+      "variants": [
+        { "id": "v-01", "design": "girasol", "size": "chica", "color": "lila", "price_ars": null, "availability": "available" },
+        { "id": "v-02", "design": "girasol", "size": "grande", "color": "celeste", "price_ars": 14000, "availability": "last_units" }
+      ],
+      "media": [
+        { "id": "m-01", "position": 0, "alt_text": "Riñonera de tela con estampa de girasoles sobre fondo lila" },
+        { "id": "m-02", "position": 1, "alt_text": "Riñonera abierta mostrando el interior verde" }
+      ]
+    },
+    {
+      "id": "p-02",
+      "slug": "cartera-nube",
+      "name": "Cartera Nube",
+      "category": "carteras",
+      "description": "Liviana, espaciosa y con onda. Para ir de la oficina a la plaza sin cambiar de bolso.",
+      "price_ars": 21000,
+      "featured": true,
+      "updated_at": 1793800000000,
+      "variants": [
+        { "id": "v-03", "design": "nube", "size": "", "color": "celeste", "price_ars": null, "availability": "made_to_order" }
+      ],
+      "media": [
+        { "id": "m-03", "position": 0, "alt_text": "Cartera celeste con estampa de nubes" }
+      ]
+    },
+    {
+      "id": "p-03",
+      "slug": "neceser-frutillas",
+      "name": "Neceser Frutillas",
+      "category": "neceseres",
+      "description": "Para que el maquillaje viaje de buen humor.",
+      "price_ars": 9800,
+      "featured": false,
+      "updated_at": 1793700000000,
+      "variants": [
+        { "id": "v-04", "design": "frutillas", "size": "mediano", "color": "verde", "price_ars": null, "availability": "available" }
+      ],
+      "media": [
+        { "id": "m-04", "position": 0, "alt_text": "Neceser verde con frutillas estampadas" },
+        { "id": "m-05", "position": 1, "alt_text": "Neceser de frente con el cierre abierto" }
+      ]
+    },
+    {
+      "id": "p-04",
+      "slug": "cartuchera-planeta",
+      "name": "Cartuchera Planeta",
+      "category": "cartucheras",
+      "description": null,
+      "price_ars": null,
+      "featured": false,
+      "updated_at": 1793600000000,
+      "variants": [],
+      "media": [
+        { "id": "m-06", "position": 0, "alt_text": "Cartuchera de tela celeste con planetas" }
+      ]
+    },
+    {
+      "id": "p-05",
+      "slug": "cartera-luna",
+      "name": "Cartera Luna",
+      "category": "carteras",
+      "description": "Una luna que te acompaña a todos lados.",
+      "price_ars": 19500,
+      "featured": true,
+      "updated_at": 1793500000000,
+      "variants": [
+        { "id": "v-05", "design": "luna", "size": "", "color": "lila", "price_ars": null, "availability": "available" },
+        { "id": "v-06", "design": "luna", "size": "", "color": "verde", "price_ars": null, "availability": "available" }
+      ],
+      "media": [
+        { "id": "m-07", "position": 0, "alt_text": "Cartera lila con una luna bordada" }
+      ]
+    },
+    {
+      "id": "p-06",
+      "slug": "monedero-hoja",
+      "name": "Monedero Hoja",
+      "category": "otros",
+      "description": "Chiquito, simpático y justo para las monedas de la feria.",
+      "price_ars": 5500,
+      "featured": false,
+      "updated_at": 1793400000000,
+      "variants": [
+        { "id": "v-07", "design": "hoja", "size": "", "color": "verde", "price_ars": null, "availability": "last_units" }
+      ],
+      "media": [
+        { "id": "m-08", "position": 0, "alt_text": "Monedero verde con forma de hoja" }
+      ]
+    }
+  ],
+  "fairs": [
+    {
+      "id": "f-01",
+      "name": "Feria Creativa de Muestra",
+      "place": "Plaza Ficticia",
+      "address": "Calle Inventada 123",
+      "maps_url": "https://maps.example.com/plaza-ficticia",
+      "starts_at": 1906000000000,
+      "ends_at": 1906030000000
+    },
+    {
+      "id": "f-02",
+      "name": "Feria Pasada (no debería verse)",
+      "place": "Salón Viejo",
+      "address": null,
+      "maps_url": null,
+      "starts_at": 1700000000000,
+      "ends_at": 1700030000000
+    }
+  ]
+}

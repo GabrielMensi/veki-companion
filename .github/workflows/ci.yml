@@ -27,7 +27,5 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
-      # apps/web has no build script until T21 merges; --if-present keeps CI green
-      # meanwhile. Make it strict (drop --if-present) once T21 lands.
       - run: npm test
-      - run: npm run build -w apps/web --if-present
+      - run: npm run build -w apps/web

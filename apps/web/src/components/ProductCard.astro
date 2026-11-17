@@ -1,0 +1,28 @@
+---
+import type { Product } from "../lib/catalog-schema";
+import { sortedMedia } from "../lib/catalog";
+import { formatPrice } from "../lib/format";
+import Photo from "./Photo.astro";
+
+interface Props {
+  product: Product;
+  eager?: boolean;
+}
+
+const { product, eager = false } = Astro.props;
+const cover = sortedMedia(product)[0];
+---
+
+<li class="card">
+  <a href={`/p/${product.slug}/`}>
+    {
+      cover && (
+        <Photo mediaId={cover.id} alt={cover.alt_text} sizes="(min-width: 52rem) 22vw, (min-width: 32rem) 45vw, 90vw" eager={eager} />
+      )
+    }
+    <div class="body">
+      <h3>{product.name}</h3>
+      <span class="price">{formatPrice(product.price_ars)}</span>
+    </div>
+  </a>
+</li>

@@ -1,0 +1,44 @@
+---
+import { Picture } from "astro:assets";
+import { mediaSrc } from "../lib/media";
+
+interface Props {
+  mediaId: string;
+  alt: string;
+  sizes: string;
+  eager?: boolean;
+}
+
+const { mediaId, alt, sizes, eager = false } = Astro.props;
+const src = mediaSrc(mediaId);
+---
+
+{/* WebP en 400/800/1200 (docs/02-diseno.md §5.3). */}
+{
+  typeof src === "string" ? (
+    <Picture
+      src={src}
+      inferSize
+      alt={alt}
+      formats={["webp"]}
+      fallbackFormat="webp"
+      widths={[400, 800, 1200]}
+      sizes={sizes}
+      loading={eager ? "eager" : "lazy"}
+      fetchpriority={eager ? "high" : "auto"}
+      decoding={eager ? "sync" : "async"}
+    />
+  ) : (
+    <Picture
+      src={src}
+      alt={alt}
+      formats={["webp"]}
+      fallbackFormat="webp"
+      widths={[400, 800, 1200]}
+      sizes={sizes}
+      loading={eager ? "eager" : "lazy"}
+      fetchpriority={eager ? "high" : "auto"}
+      decoding={eager ? "sync" : "async"}
+    />
+  )
+}
