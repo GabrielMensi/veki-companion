@@ -68,3 +68,15 @@ export const copyAcciones = {
   feriaEditada: (nombre: string) => `Listo, cambié la feria ${nombre}.`,
   feriaCancelada: (nombre: string) => `Listo, cancelé la feria ${nombre}.`,
 };
+
+// ── T17: ingreso de fotos y videos ──────────────────────────────────────────
+/** Límite de descarga de la Bot API (getFile): 20 MB. */
+export const MAX_DOWNLOAD_BYTES = 20 * 1024 * 1024;
+
+const mbTexto = (n: number) => (n / 1024 / 1024).toFixed(1).replace(".", ",");
+
+export const copyMedia = {
+  /** Video que supera el límite de 20 MB (texto del spike de Telegram). `bytes` omitido = tamaño desconocido. */
+  videoPesado: (bytes?: number) =>
+    `Uh, ese video pesa ${bytes === undefined ? "más de 20 MB" : `${mbTexto(bytes)} MB`} y no lo puedo bajar (mi límite es 20 MB). ¿Me mandás uno más cortito, de unos 10 segundos? 🙏`,
+};
