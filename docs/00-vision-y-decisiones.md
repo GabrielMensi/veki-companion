@@ -48,6 +48,7 @@
 | D6 | Contenido: LLM con salida estructurada para copy, selección de fotos y guiones, más **plantillas determinísticas** para flyers y reels. | Gratis, consistente con la marca, no consume cuota de generación de imagen. |
 | D7 | Instagram: **etapa posterior**. En el MVP el bot entrega el contenido listo y ella lo publica manualmente. | La publicación por API exige cuenta profesional; la conversión queda para más adelante. |
 | D8 | Dominio propio: más adelante, si ella se siente cómoda. | Prioridad gratis. |
+| D9 | Speech-to-text: Groq `whisper-large-v3`, sin pista de vocabulario. | Spike 1: 10 notas reales, 0 errores de API, ~450 ms de latencia, solo 3 diferencias menores de palabra frente a la lectura. Detalle en `spikes/whisper` (PR #2). |
 
 ## 5. Stack de IA (verificado el 2026-11-16, con las salvedades de la sección 8)
 
@@ -123,10 +124,22 @@ GitHub Actions (repo privado) se descartó para el inicio porque el autor agotó
 
 ## 11. Pendientes del autor
 
-- [ ] Identidad de marca (logo, colores, tipografía, nombre exacto).
+- [x] Identidad de marca recibida (ver sección 13). Falta extraer los archivos del logo en versión vectorial o PNG.
 - [ ] Confirmar si ella ya usa Telegram.
 - [ ] Más adelante: decidir cuándo convertir el Instagram a cuenta profesional.
 
 ## 12. Próximo paso
 
 Elegir qué spikes hacer primero y recién después armar el plan de diseño y las etapas de implementación. Las investigaciones se delegan en subagentes de nivel bajo (Haiku) y las decisiones las toma el autor.
+
+## 13. Identidad de marca (del brandbook recibido el 2026-11-17)
+
+- **Nombre de la marca: "Veky"** (con y griega). El repo y el bot usan "veki" por el nombre del proyecto; el contenido público debe decir **Veky**.
+- **Producto:** accesorios textiles artesanales (carteras, riñoneras, neceseres, etc.) con diseño creativo y colorido.
+- **Público:** personas de 20 a 40 años que buscan productos únicos que reflejen su personalidad. Es una marca emergente que creció por boca a boca; el objetivo es ganar visibilidad en redes.
+- **Personalidad y tono:** alegre, cálida, cercana, creativa, espontánea. Rechaza el minimalismo y la falta de personalidad. Los textos que genere la IA deben sonar así.
+- **Paleta:** lila `#AC9FD6` (principal), verde `#C3D787` (secundario), celeste `#A3D3DD` (secundario).
+- **Tipografía:** Poppins (Regular para cuerpos de texto; el brandbook completo define las demás variantes).
+- **Logo:** isologo principal con una tijera integrada y tipografía redondeada, en lila. Hay variante horizontal (para etiquetas), versiones positiva y negativa, y mockups de aplicaciones.
+- **Estilo de anuncios:** escenas exageradas (hipérbole) y metáforas que muestran los accesorios como parte de la historia de quien los usa.
+- **Fuente:** PDF privado en `samples/` (gitignored; contiene datos personales de la diseñadora). No se versiona.
