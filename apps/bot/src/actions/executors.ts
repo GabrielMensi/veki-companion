@@ -73,6 +73,7 @@ const parse = <N extends ToolName>(name: N, args: unknown) => {
 
 const editarProducto: Executor = async ({ db, args, now }) => {
   const a = parse("editar_producto", args);
+  if (!a.producto_id) throw new ActionError(copyAcciones.noEncontre);
   const prev = await snapshot(db, "products", a.producto_id);
   if (!prev) throw new ActionError(copyAcciones.noEncontre);
   const set: Row = { ...a.cambios };
@@ -90,6 +91,7 @@ const editarProducto: Executor = async ({ db, args, now }) => {
 
 const cambiarStock: Executor = async ({ db, args, now }) => {
   const a = parse("cambiar_stock", args);
+  if (!a.variante_id) throw new ActionError(copyAcciones.noEncontre);
   const prev = await snapshot(db, "variants", a.variante_id);
   if (!prev) throw new ActionError(copyAcciones.noEncontre);
   let next: number;

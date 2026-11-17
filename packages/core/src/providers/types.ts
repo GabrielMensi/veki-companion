@@ -9,7 +9,9 @@ export type Msg =
 
 export type ToolDef = { name: string; description: string; parameters: JsonSchema };
 
-export type ChatRequest = { system: string; messages: Msg[]; tools?: ToolDef[]; json?: JsonSchema };
+export type ToolChoice = "auto" | "required";
+
+export type ChatRequest = { system: string; messages: Msg[]; tools?: ToolDef[]; toolChoice?: ToolChoice; json?: JsonSchema };
 
 export type Usage = { tokensIn: number; tokensOut: number; audioS?: number };
 

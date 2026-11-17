@@ -37,7 +37,8 @@ export const toolSchemas = {
   }),
   crear_producto: z.object({}),
   editar_producto: z.object({
-    producto_id: id,
+    producto_id: id.optional(),
+    producto: z.string().min(1).optional(),
     cambios: z.object({
       name: z.string().min(1).optional(),
       price_ars: z.number().int().nonnegative().optional(),
@@ -52,7 +53,9 @@ export const toolSchemas = {
     archivar: z.array(id).optional(),
   }),
   cambiar_stock: z.object({
-    variante_id: id,
+    variante_id: id.optional(),
+    producto: z.string().min(1).optional(),
+    variante: z.string().min(1).optional(),
     delta: z.number().int().optional(),
     fijar: z.number().int().nonnegative().optional(),
     motivo: z.enum(["venta", "reposicion", "ajuste"]),
@@ -116,15 +119,15 @@ export const toolKinds: Record<ToolName, ToolKind> = {
 /** Descripciones cortas a propósito: cada token cuenta (presupuesto ≤ 2.500 con el system prompt). */
 const descriptions: Record<ToolName, string> = {
   responder: "Único modo de hablarle a la usuaria. Solo para preguntar lo que falta o contestar; si pidió guardar o cambiar algo, llamá antes la herramienta que corresponde.",
-  buscar_productos: "Busca productos por nombre, diseño o color. Devuelve ids de producto y de variante. Obligatoria antes de editar o tocar stock.",
+  buscar_productos: "Busca productos para consultar precios, stock o ids.",
   ver_producto: "Ficha de un producto: variantes, stock, fotos.",
   ver_agenda: "Ferias de un rango (por defecto, próximos 30 días).",
   ver_contenido: "Estado de los flyers/reels en curso.",
   actualizar_borrador: "Obligatoria cuando manda fotos o cuenta datos de un producto o feria nuevos (nombre, precio, categoría, fechas). Guarda lo que dijo; no escribe en el catálogo.",
   crear_producto: "Obligatoria cuando el borrador está completo: arma la vista previa para que ella confirme.",
-  editar_producto: "Cambia nombre, precio, descripción, categoría o estado de un producto (pide confirmación). Usá el id de buscar_productos.",
+  editar_producto: "Edita nombre, precio, descripción, categoría o estado (pide confirmación). Acepta producto (nombre) o producto_id.",
   editar_variantes: "Agrega o archiva variantes (pide confirmación).",
-  cambiar_stock: "Ventas, reposición o ajuste de stock de una variante (pide confirmación). Venta: delta negativo, motivo venta. Usá el id de variante de buscar_productos.",
+  cambiar_stock: "Venta, reposición o ajuste de stock (pide confirmación). Venta: delta negativo, motivo venta. Acepta producto y variante (o variante_id).",
   agregar_fotos: "Suma fotos a un producto.",
   crear_feria: "Crea una feria. Fechas hora Argentina.",
   editar_feria: "Cambia datos de una feria.",

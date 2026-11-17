@@ -86,6 +86,23 @@ describe("GroqChat", () => {
     const e = (await new GroqChat({ apiKey: "SECRET-KEY", model: "m", fetch: f }).complete(req).catch((x) => x)) as Error;
     expect(e.message).not.toContain("SECRET-KEY");
   });
+
+  it("pasa tool_choice cuando hay tools y cae a auto si el modelo lo rechaza (400)", async () => {
+    const ok = json({ choices: [{ message: { content: null, tool_calls: [{ id: "1", function: { name: "t", arguments: "{}" } }] } }] });
+    const f = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: { message: "tool_choice is not supported" } }), { status: 400 }))
+      .mockResolvedValueOnce(ok);
+    const r = await new GroqChat({ apiKey: "k", model: "m", fetch: f }).complete({
+      ...req,
+      tools: [{ name: "t", description: "d", parameters: { type: "object" } }],
+      toolChoice: "required",
+    });
+    expect(r.toolCalls[0]?.name).toBe("t");
+    expect(f).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(f.mock.calls[0]![1]!.body as string).tool_choice).toBe("required");
+    expect(JSON.parse(f.mock.calls[1]![1]!.body as string).tool_choice).toBe("auto");
+  });
 });
 
 describe("GeminiChat", () => {

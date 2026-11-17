@@ -1,3 +1,4 @@
+import { normalizeText } from "../catalog/search";
 import { copy, type Boton } from "../copy/es-AR";
 import { isProviderError } from "../providers/errors";
 import type { ChatProvider, Msg } from "../providers/types";
@@ -84,6 +85,23 @@ function coerce(obj: { texto?: unknown; botones?: unknown }): AgentOutput | unde
 }
 
 /**
+ * Decide si la primera llamada al LLM debe llevar `tool_choice: "required"` (mitigación 3 de docs/02 §4.6.1):
+ * - borrador pendiente con fotos (`media_ids`) o llegada de fotos nuevas (`media_ids:` en el aviso)
+ * - intención explícita de deshacer, venta o cambio de precio (palabras clave sin tildes)
+ * `responder` sigue estando en `tools`, así que igual puede preguntar si falta algún dato.
+ */
+export function shouldRequireTool(state: AgentState, text: string): boolean {
+  if (state.draft && state.draft.media_ids.length > 0) return true;
+  if (/\bmedia_ids:/i.test(text)) return true;
+  const norm = normalizeText(text);
+  return (
+    /\b(deshac\w*|volver atras|volve atras|anular?)\b/.test(norm) ||
+    /\bvendi\b/.test(norm) ||
+    /\b(cambiale el precio|cambiar el precio|cambio de precio|precio a)\b/.test(norm)
+  );
+}
+
+/**
  * Un update de la usuaria → una salida. Hasta 3 llamadas al LLM; `responder` es el único canal de salida.
  * Si el proveedor falla en todas las cadenas, la excepción sube (la cola reintenta el update): no se guarda nada.
  */
@@ -99,6 +117,7 @@ export async function runAgent(
   const messages: Msg[] = [...trimHistory(args.history, histLen), { role: "user", content: input.text } as Msg];
   let regenerated = false;
   let repaired = false;
+  let requireTool = shouldRequireTool(state, input.text);
   let output: AgentOutput | null = null;
   let calls = 0;
   let tokensIn = 0;
@@ -107,17 +126,27 @@ export async function runAgent(
   while (!output && calls < maxCalls) {
     calls++;
     const system = buildSystem({ state, catalogSummary: deps.catalogSummary, lowConfidenceVoice: input.lowConfidenceVoice, pendingSummary: pendingSummary(state, args.history) });
+    const toolChoice = calls === 1 && requireTool ? ("required" as const) : undefined;
     let res;
     try {
-      res = await deps.chat.complete({ system, messages, tools: toolDefs });
+      res = await deps.chat.complete({ system, messages, tools: toolDefs, ...(toolChoice ? { toolChoice } : {}) });
     } catch (e) {
-      // El modelo armó mal una llamada a herramienta (todas las cadenas fallaron así): UN reintento con una pista.
-      if (isProviderError(e) && e.kind === "bad_output" && !repaired) {
+      if (
+        toolChoice === "required" &&
+        isProviderError(e) &&
+        (e.status === 400 || e.status === 422) &&
+        (e.kind === "fatal" || /tool_choice/i.test(e.message))
+      ) {
+        requireTool = false;
+        res = await deps.chat.complete({ system, messages, tools: toolDefs });
+      } else if (isProviderError(e) && e.kind === "bad_output" && !repaired) {
+        // El modelo armó mal una llamada a herramienta (todas las cadenas fallaron así): UN reintento con una pista.
         repaired = true;
         messages.push({ role: "user", content: "(sistema) La llamada anterior a la herramienta no era válida. Repetila con los argumentos justos: sin campos vacíos ni null; los opcionales, omitilos." });
         continue;
+      } else {
+        throw e;
       }
-      throw e;
     }
     tokensIn += res.usage.tokensIn;
     tokensOut += res.usage.tokensOut;
