@@ -1,4 +1,4 @@
-import { copy, formatPrecio } from "../copy/es-AR";
+import { copy, copyVistaPrevia, formatPrecio } from "../copy/es-AR";
 import type { Draft } from "../agent/draft";
 import { nextMissingField } from "../agent/draft";
 import { toolKinds, toolSchemas, type ToolName } from "./defs";
@@ -44,13 +44,31 @@ const draftLine = (d: Draft) => {
       ];
 };
 
-/** Vista previa fija de una escritura (no la inventa el LLM). */
-export function previewFor(tool: ToolName, args: Record<string, unknown>, draft: Draft | null): string {
+/** Vista previa fija de una escritura (no la inventa el LLM). Nunca muestra ids ni JSON. */
+export function previewFor(
+  tool: ToolName,
+  args: Record<string, unknown>,
+  draft: Draft | null,
+  producto: { nombre?: string; precioActual?: string } | null = null,
+): string {
   if (tool === "crear_producto" && draft) return draftLine(draft).join("\n");
-  const resumen = Object.entries(args)
-    .map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : String(v)}`)
-    .join(" · ");
-  return `Voy a hacer esto 👇\n${tool.replace(/_/g, " ")}${resumen ? ` — ${resumen}` : ""}`;
+  if (tool === "editar_producto") return copyVistaPrevia.editarProducto(producto, (args.cambios ?? {}) as Parameters<typeof copyVistaPrevia.editarProducto>[1]);
+  if (tool === "deshacer") return copyVistaPrevia.deshacer;
+  return copyVistaPrevia.generica;
+}
+
+/** Nombre y precio de hoy del producto, para la vista previa. Si no se puede leer, la vista previa sale sin esos datos. */
+async function productoActual(host: ToolHost, args: Record<string, unknown>) {
+  try {
+    const r = (await host.read?.("ver_producto", { producto_id: args.producto_id })) as { nombre?: unknown; precio?: unknown } | string | undefined;
+    if (!r || typeof r === "string") return null;
+    return {
+      nombre: typeof r.nombre === "string" ? r.nombre : undefined,
+      precioActual: typeof r.precio === "string" ? r.precio : undefined,
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -84,7 +102,7 @@ export async function runTool(
       if (missing) return { kind: "error", message: `Falta ${missing}: preguntale ${copy.campoFaltante[missing]}.` };
       toStore = { draft: ctx.draft };
     }
-    const preview = previewFor(name, args, ctx.draft);
+    const preview = previewFor(name, args, ctx.draft, name === "editar_producto" ? await productoActual(host, args) : null);
     const { id } = await host.createPendingAction({
       chatId: ctx.chatId,
       tool: name,

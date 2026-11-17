@@ -1,4 +1,4 @@
-import { copy, copyAcciones, paUndoData, type Boton, type ConversationStore } from "@veki/core";
+import { CH_PREFIX, SC_PREFIX, atajoFrases, copy, copyAcciones, paUndoData, type Boton, type ConversationStore } from "@veki/core";
 import { D1ConversationStore, updateState } from "../actions/conversation-store";
 import { executeAction, type ExecuteDeps } from "../actions/execute";
 import { cancelAction, eventStmt, expireAction, getAction, type LogActor } from "../actions/pending";
@@ -59,6 +59,17 @@ export function parseCallbackData(data: string | undefined): { id: string; actio
   return m ? { id: m[1]!, action: m[2] as PaAction } : null;
 }
 
+/**
+ * Botones que no son acciones pendientes → texto que entra al agente como si ella lo hubiera escrito, o `null`.
+ * `sc:<clave>` (atajo) → frase fija; `ch:<texto>` (elección del agente) → el texto del botón. Ver `copy/es-AR.ts`.
+ */
+export function agentInputFromCallback(data: string | undefined): string | null {
+  if (!data) return null;
+  if (data.startsWith(SC_PREFIX)) return atajoFrases[data.slice(SC_PREFIX.length)] ?? null;
+  if (data.startsWith(CH_PREFIX)) return data.slice(CH_PREFIX.length).trim() || null;
+  return null;
+}
+
 export function defaultCallbackDeps(env: Env): CallbackDeps {
   const allow = parseAllowlist(env.ALLOWED_CHAT_IDS);
   return { tg: telegramApi(env.TELEGRAM_BOT_TOKEN), store: new D1ConversationStore(env.DB, (id) => allow.get(id) ?? "owner") };
@@ -73,7 +84,9 @@ export async function handleCallback(env: Env, cq: CallbackQuery, deps: Callback
   const messageId = cq.message?.message_id;
   const quiet = (p: Promise<unknown>) => p.catch(() => {}); // el aviso/limpieza de botones es "mejor esfuerzo"
 
+  const clear0 = () => quiet(tg.clearButtons(chatId as number, messageId as number));
   await quiet(tg.answerCallback(cq.id)); // corta el relojito del botón
+  if (!parsed && typeof chatId === "number" && typeof messageId === "number" && agentInputFromCallback(cq.data)) await clear0(); // atajo/elección: quita los botones (evita doble toque); el turno lo corre `dispatch`
   if (!parsed || typeof chatId !== "number") return;
 
   const actor: LogActor = parseAllowlist(env.ALLOWED_CHAT_IDS).get(chatId) === "admin" ? "admin" : "owner";

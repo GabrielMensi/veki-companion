@@ -73,7 +73,8 @@ describe("criterio 3: cambiar el precio y deshacer", () => {
     const w = world;
     // La vista previa llego con botones y todavia no cambio nada.
     expect(w.last().buttons.map((b) => b.text)).toEqual(["Sí", "Cambiar", "Cancelar"]);
-    expect(w.last().text).toContain("15000");
+    expect(w.last().text).toContain("$15.000");
+    expect(w.last().text).not.toMatch(new RegExp(`${RINONERA.id}|producto_id|cambios|[{}]`));
     expect((await productRow(RINONERA.id))!.price_ars).toBe(12000);
 
     await w.tap("Sí");
