@@ -1,0 +1,56 @@
+# Veki Companion: orchestration protocol (for agents)
+
+Language: English between agents. The user speaks Spanish; anything addressed to the user is relayed by the root coordinator, never sent by you.
+
+## Roles
+
+- **Root coordinator**: the Claude session the user talks to. It sends tasks to the orchestrator and relays results. It is the only agent that talks to the user.
+- **Orchestrator** (Claude Sonnet, medium effort): receives tasks from the root coordinator, spawns exactly one worker per task, reviews the result, reports back. It does not write product code.
+- **Workers**: Claude (Sonnet, medium) or Antigravity. One worker per task, in an isolated worktree and branch.
+
+## Git workflow
+
+- Integration branch: `develop`. `main` only receives merges that the user approves through the root coordinator.
+- Every worker starts from a fresh `origin/develop`, in its own worktree and branch (`task/<short-name>`). Nobody works in the main tree and nobody shares a working tree.
+- A worker opens a PR **to `develop`** only when its work is ready and has been approved by the orchestrator (checks run, evidence reviewed). The PR description states what changed, how it was verified, and any open risk.
+- Nobody merges a PR. The orchestrator reports the PR link to the root coordinator, who gets the user's approval and merges.
+- Clean merged worktrees and branches when the task is done (`worker-release`).
+- Commit messages end with the attribution line given by the environment.
+
+## Models
+
+- Default: Claude `claude-sonnet-5-5`, effort medium, for code, diagnosis and design.
+- Low tier (reading, triage, docs, mechanical tasks): Claude Haiku or Antigravity Gemini Flash.
+- Antigravity is used only when the task says so. Use its Gemini quota by default and ask the root coordinator before using its Claude/GPT quota.
+- High and very high tiers (Opus, Fable) need explicit per-task authorization from the user. Recommend with a reason and wait.
+- Never switch provider on your own, even out of quota: report and wait.
+- After `worker-start`, verify the effective model with `worker-list`. It must match the requested one.
+
+## Antigravity shell rule (copy it into every Antigravity worker spec)
+
+- Run EVERY `orca-ide` command as `timeout 20 orca-ide ... </dev/null 2>&1 | cat ; echo exit=$?`.
+- Reports: `timeout 15 orca-ide orchestration send ... ; echo exit=$?`, wait for `lifecycle=completed`, retry once. Never run in the background.
+
+## Orchestration rules
+
+- Pass specs with `--spec "$(cat file)"`, not `--spec-file`.
+- Make each spec self-contained: target, change, constraints, files the worker may edit, and the evidence that proves it is done.
+- Do not poll `check` or `worker-read` in loops. End your turn and wait for Orca to wake you.
+- Verify results yourself (git log, git status, diff, run the checks) before approving. Release workers with `worker-release` when finished.
+- If quota runs out, the worker stops and leaves its work in the worktree. Report it to the root coordinator.
+
+## Secrets and private data
+
+- Real secrets live in `.env` in the main tree. It is gitignored and is NOT present in new worktrees. When a task needs it, copy it into the worker's worktree (it stays gitignored). Never print, log, commit or paste key values anywhere.
+- `samples/` (voice notes and videos of a real person) is private and gitignored. Copy it into the worktree only when the task needs it. Never commit it, never upload it anywhere except the API the task names, and never include transcripts or content of it in PR descriptions or reports beyond what the task asks for.
+- The repo may become public: nothing sensitive may ever be committed.
+- Main tree path (WSL): `/home/gabrielmensi/personal-projects/veki-companion`.
+
+## Project context
+
+Read `docs/00-vision-y-decisiones.md` for goals, decisions and open questions. Do not contradict a recorded decision (D1 to D8) without escalating to the root coordinator.
+
+## Reporting
+
+- Worker to orchestrator: `worker_done` with outcome, evidence (commands run and results, PR link) and open blockers.
+- Orchestrator to root coordinator: one `worker_done` per task received, summarizing per worker: outcome, evidence, PR link, risks.
