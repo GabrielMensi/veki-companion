@@ -1,5 +1,6 @@
 import { ulid } from "@veki/core";
 import type { Env } from "./env";
+import { handleUpdateMessage } from "./handlers/callback";
 
 /** Mensajes de q-updates y q-jobs. `type` decide el handler. */
 export type UpdateMessage = { type: "update"; update_id: number; update: unknown };
@@ -16,7 +17,7 @@ export type Handler = (msg: any, env: Env) => Promise<void>;
 const stub: Handler = async () => {};
 
 export const handlers: Record<string, Handler> = {
-  update: stub,
+  update: handleUpdateMessage, // T18: callbacks; T16/T17 enchufan texto, voz y fotos acá
   "vision.rank": stub,
   "content.generate": stub,
   "content.deliver": stub,
