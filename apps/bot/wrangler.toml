@@ -1,0 +1,30 @@
+name = "veki-bot"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+
+# Bindings D1/R2/Queues. Los ids son de ejemplo: database_id se completa al crear la base remota.
+[[d1_databases]]
+binding = "DB"
+database_name = "veki"
+database_id = ""
+migrations_dir = "../../migrations"
+
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "veki-media"
+
+[[queues.producers]]
+binding = "Q_UPDATES"
+queue = "q-updates"
+
+[[queues.producers]]
+binding = "Q_JOBS"
+queue = "q-jobs"
+
+[[queues.consumers]]
+queue = "q-updates"
+max_batch_size = 1
+max_concurrency = 1
+
+[[queues.consumers]]
+queue = "q-jobs"
