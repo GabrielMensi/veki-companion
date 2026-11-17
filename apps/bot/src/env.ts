@@ -26,6 +26,8 @@ export interface Env {
   TELEGRAM_BOT_TOKEN: string;
   /** Secret (`wrangler secret` + `setWebhook(secret_token)`): se valida en cada update. */
   TG_WEBHOOK_SECRET: string;
+  /** Secret (`wrangler secret`): URL del deploy hook de Pages para reconstruir el sitio. Opcional: sin ella no se reconstruye. */
+  DEPLOY_HOOK_URL?: string;
   /** Var del Worker: lista `id:rol` separada por comas, p. ej. `111:owner,222:admin`. Un id suelto es `owner`. */
   ALLOWED_CHAT_IDS: string;
 }

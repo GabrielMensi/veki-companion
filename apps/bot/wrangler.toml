@@ -30,6 +30,9 @@ max_concurrency = 1
 queue = "q-jobs"
 max_concurrency = 2
 
-# Secrets (wrangler secret): TELEGRAM_BOT_TOKEN, TG_WEBHOOK_SECRET. Locales en .dev.vars.
+[triggers]
+crons = ["*/15 * * * *", "0 9 * * *"]
+
+# Secrets (wrangler secret): TELEGRAM_BOT_TOKEN, TG_WEBHOOK_SECRET, DEPLOY_HOOK_URL. Locales en .dev.vars.
 [vars]
 ALLOWED_CHAT_IDS = ""  # "id:owner,id:admin"; se completa al desplegar

@@ -58,7 +58,7 @@ flowchart LR
 ### 1.3 Flujo típico: alta de producto por foto y voz
 
 1. Ella manda 3 fotos (álbum) y una nota de voz: "Esta es la riñonera girasol, sale doce mil quinientos, tengo dos".
-2. Webhook (por cada update): verifica `X-Telegram-Bot-Api-Secret-Token`, verifica `chat.id` en la allowlist, `INSERT OR IGNORE INTO updates(update_id…)`; si ya existía responde 200 y termina (Telegram reintenta). Si es nuevo, `q-updates.send({update_id})` y responde 200.
+2. Webhook (por cada update): verifica `X-Telegram-Bot-Api-Secret-Token`, verifica `chat.id` en la allowlist, `INSERT OR IGNORE INTO updates(update_id…)`; si ya existía responde 200 y termina (Telegram reintenta). Si es nuevo, `q-updates.send({type:"update", update_id, update})` (el cuerpo del update viaja en el mensaje transitorio de la cola porque la tabla `updates` no guarda payload) y responde 200.
 3. Consumidor (`q-updates`, lote 1, concurrencia 1): fotos con `media_group_id` → se guardan en `media` (estado `inbox`) y se registra el grupo en `inbox_groups`; se encola en `q-jobs` un `album_flush` con `delaySeconds: 3` (§2.3). Voz → descarga de Telegram → Groq Whisper → texto → agente.
 4. El agente llama `actualizar_borrador({nombre, precio, stock})`. El código calcula qué falta (`categoria`): el bot pregunta **una sola cosa**.
 5. Con el borrador completo, el agente llama `crear_producto` → se crea una `pending_action` con vista previa y botones **Sí / Cambiar / Cancelar**.
