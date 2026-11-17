@@ -314,3 +314,14 @@ Requiere U10 y una decisión del usuario sobre automatizar publicaciones. Piezas
 | 13 | T52 |
 
 Conflictos de archivos a vigilar por el orquestador: `packages/core/src/copy/es-AR.ts` (T16, T34, T43: cada una agrega su propia sección; mergear en orden), `apps/bot/src/cron.ts` (T20, T33), `apps/bot/wrangler.toml` (T11, T14, T24).
+
+## 9. Backlog: módulos pedidos, sin desglosar
+
+### Calculadora de precios (pedido del autor el 2026-11-17, va al final)
+
+Ayuda a calcular cuánto cobrar por un producto. Boceto de alcance, a diseñar después de la etapa 4:
+- Entradas conversacionales: materiales y su costo, tiempo de trabajo, costos de feria (puesto, traslado, comisiones), margen deseado.
+- Guarda un catálogo de materiales y costos reutilizable, para que la próxima vez solo diga "hice otro neceser igual".
+- Devuelve un precio sugerido con el desglose y la pregunta de confirmación; nada se guarda en el producto sin "Sí" (como el resto de las escrituras).
+- Preguntas a resolver con ella antes de diseñar: cómo valora hoy su tiempo, si prefiere precios redondeados, si quiere precio por mayor.
+- Depende de: el catálogo (E1) y la herramienta de edición de productos. Candidato natural a etapa 6.

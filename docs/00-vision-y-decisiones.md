@@ -58,7 +58,7 @@
 |---|---|---|
 | Entender mensajes y llamar herramientas | Groq `gpt-oss-120b` | OpenRouter `:free`, Gemini Flash-Lite |
 | Voz a texto (español) | Groq Whisper large-v3 | Whisper en Cloudflare Workers AI |
-| Visión (elegir fotos, describir producto) | Gemini free | Modelo de visión gratis en OpenRouter |
+| Visión (elegir fotos, describir producto) | Gemini free | Groq (modelo de visión), según D11. OpenRouter queda como tercer eslabón opcional, sin probar |
 | Textos en español | Groq `gpt-oss-120b` | Gemini Flash-Lite |
 
 - Con 20–100 pedidos/día los límites gratis sobran.
@@ -68,7 +68,7 @@
 ## 6. Infraestructura (límites verificados, planes gratis)
 
 - **Workers:** 10 ms de CPU por ejecución, 100k pedidos/día. El webhook debe responder rápido y delegar el trabajo pesado.
-- **D1:** 5 GB, 100k escrituras/día. **R2:** 10 GB, sin costo de descarga. **Cron Triggers:** 5 por cuenta (recordatorios y avisos). **Pages:** 500 builds/mes.
+- **D1:** 500 MB por base (5 GB en total por cuenta), 100k escrituras/día. **R2:** 10 GB, sin costo de descarga. **Cron Triggers:** 5 por cuenta (recordatorios y avisos). **Pages:** 500 builds/mes.
 - **Containers:** requieren plan de pago, descartados. **Browser Run:** 10 min/día gratis, solo como respaldo para flyers.
 - **Telegram:** el bot descarga hasta 20 MB y envía hasta 50 MB. Los mensajes son gratis. Los álbumes llegan como mensajes sueltos con un `media_group_id` en común, y hay que agruparlos.
 
@@ -124,6 +124,7 @@ Propuesta original, para referencia:
 ## 10. Ideas a priorizar (sin decidir)
 
 - Agenda pública de ferias ("Esta semana estoy en…") y post automático de aviso antes de cada feria.
+- **Calculadora de precios** (módulo agregado el 2026-11-17, al final del plan): ayuda a ella a calcular cuánto cobrar por un producto a partir del costo de materiales, el tiempo de trabajo, costos de feria y un margen; se maneja conversando con el bot ("¿cuánto cobro por este neceser?") y guarda sus costos de materiales para reutilizarlos.
 - Stock por voz ("vendí 2 neceseres").
 - Registro de encargos personalizados.
 - Resumen semanal por Telegram.
@@ -152,3 +153,20 @@ Elegir qué spikes hacer primero y recién después armar el plan de diseño y l
 - **Logo:** isologo principal con una tijera integrada y tipografía redondeada, en lila. Hay variante horizontal (para etiquetas), versiones positiva y negativa, y mockups de aplicaciones.
 - **Estilo de anuncios:** escenas exageradas (hipérbole) y metáforas que muestran los accesorios como parte de la historia de quien los usa.
 - **Fuente:** PDF privado en `samples/` (gitignored; contiene datos personales de la diseñadora). No se versiona.
+
+## 14. Decisiones de producto Q1–Q10 (2026-11-17)
+
+Respuestas del autor a las preguntas abiertas de `docs/02-diseno.md` §10: se adoptan las recomendaciones.
+
+| # | Decisión |
+|---|---|
+| Q1 | Ella usará Telegram. Se instala con ella y hacen el `/start` juntos. |
+| Q2 | Bot nuevo de producción, separado del de los spikes. |
+| Q3 | El número de WhatsApp se publica en la web (canal de venta). Usar WhatsApp Business si lo tiene. |
+| Q4 | La web no muestra cantidades: solo Disponible / Últimas unidades / Por encargo. |
+| Q5 | Gemini ve fotos de producto; el chat no va a Gemini. |
+| Q6 | Silencio de 21 a 9 h; los domingos solo aviso de feria. |
+| Q7 | Categorías iniciales: carteras, riñoneras, neceseres, cartucheras, otros. Ella las ajusta. |
+| Q8 | Precios públicos; "consultar" solo si ella no quiere mostrarlo. |
+| Q9 | Encargos personalizados después de la etapa 4. |
+| Q10 | Sitio en `veky.pages.dev` si está libre. |
