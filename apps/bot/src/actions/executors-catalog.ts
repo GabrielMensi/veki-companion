@@ -82,8 +82,8 @@ const DEFAULT_KEY = "||";
 
 /**
  * Agrega o archiva variantes. Una variante igual (mismo diseño/talle/color, sin importar tildes ni mayúsculas) se
- * reactiva/actualiza en vez de duplicarse. La variante por defecto se archiva sola cuando entran variantes con
- * nombre, y reaparece si se archivan todas (siempre queda al menos una activa).
+ * reactiva/actualiza en vez de duplicarse. La variante por defecto, cuando entran variantes con nombre, se archiva si no tiene stock
+ * y, si tiene, se convierte en la primera variante nueva conservando su stock; y reaparece si se archivan todas (siempre queda al menos una activa).
  */
 const editarVariantes: Executor = async ({ db, args, now }) => {
   const a = parse("editar_variantes", args);
@@ -105,6 +105,7 @@ const editarVariantes: Executor = async ({ db, args, now }) => {
   }
 
   const explicit = new Set<string>();
+  let firstNewNamed: string | null = null; // id de la primera variante con nombre que se crea de cero
   for (const v of a.agregar ?? []) {
     const norm = { design: v.design?.trim() ?? "", size: v.size?.trim() ?? "", color: v.color?.trim() ?? "" };
     const k = variantKey(norm);
@@ -119,6 +120,7 @@ const editarVariantes: Executor = async ({ db, args, now }) => {
       const id = ulid(now);
       cur.set(id, { id, product_id: a.producto_id, ...norm, price_ars: v.price_ars ?? null, stock: v.stock ?? null, status: "active", updated_at: now });
       touched.add(id);
+      if (k !== DEFAULT_KEY) firstNewNamed ??= id;
     }
   }
 
@@ -128,7 +130,18 @@ const editarVariantes: Executor = async ({ db, args, now }) => {
   };
   const def = findByKey(DEFAULT_KEY);
   const namedActive = [...cur.values()].some((r) => r.status === "active" && variantKey(r as never) !== DEFAULT_KEY);
-  if (def && def.status === "active" && namedActive && !explicit.has(DEFAULT_KEY)) archiveRow(def);
+  if (def && def.status === "active" && namedActive && !explicit.has(DEFAULT_KEY)) {
+    const stock = typeof def.stock === "number" ? def.stock : 0;
+    if (stock === 0) archiveRow(def); // sin stock que perder
+    else if (firstNewNamed) {
+      // Nunca se esconde stock: la variante por defecto se convierte en la primera con nombre y conserva su stock.
+      const named = cur.get(firstNewNamed)!;
+      Object.assign(def, { design: named.design, size: named.size, color: named.color, price_ars: named.price_ars ?? def.price_ars, updated_at: now });
+      cur.delete(firstNewNamed);
+      touched.delete(firstNewNamed);
+      touched.add(String(def.id));
+    } // si todas las variantes pedidas ya existían, la de por defecto queda activa (no se esconde su stock)
+  }
 
   if (![...cur.values()].some((r) => r.status === "active")) {
     if (def) {

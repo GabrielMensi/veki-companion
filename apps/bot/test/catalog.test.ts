@@ -110,6 +110,27 @@ describe("editar_variantes", () => {
     expect(after).toEqual([{ design: "", status: "active" }]);
   });
 
+  it("la variante por defecto con stock se convierte en la primera con nombre y conserva el stock; Deshacer restaura la fila", async () => {
+    const pid = await seedProductWithDefault();
+    await db.prepare("UPDATE variants SET stock = 5 WHERE product_id = ?").bind(pid).run();
+    const before = await all("SELECT * FROM variants WHERE product_id=? ORDER BY id", pid);
+    const a = await mk("editar_variantes", { producto_id: pid, agregar: [{ design: "Girasol", color: "Lila" }, { design: "Luna", stock: 1 }] }, T0 + 5);
+    expect((await executeAction(a.id, CHAT, { db, now: T0 + 5 })).kind).toBe("executed");
+    const vs = await all<{ id: string; design: string; color: string; stock: number; status: string }>("SELECT * FROM variants WHERE product_id=? ORDER BY design", pid);
+    expect(vs.map((v) => [v.design, v.color, v.stock, v.status])).toEqual([["Girasol", "Lila", 5, "active"], ["Luna", "", 1, "active"]]);
+    expect(vs[0]!.id).toBe((before[0] as { id: string }).id); // misma fila, no una nueva
+    expect((await undoAction(db, a.id, { chatId: CHAT, actor: "owner", now: T0 + 6 })).kind).toBe("undone");
+    expect(await all("SELECT * FROM variants WHERE product_id=? ORDER BY id", pid)).toEqual(before);
+  });
+
+  it("la variante por defecto con stock 0 se archiva al agregar variantes con nombre", async () => {
+    const pid = await seedProductWithDefault();
+    await db.prepare("UPDATE variants SET stock = 0 WHERE product_id = ?").bind(pid).run();
+    await run("editar_variantes", { producto_id: pid, agregar: [{ design: "Girasol", stock: 2 }] }, T0 + 5);
+    const vs = await all<{ design: string; stock: number | null; status: string }>("SELECT design, stock, status FROM variants WHERE product_id=? ORDER BY design", pid);
+    expect(vs).toEqual([{ design: "", stock: 0, status: "archived" }, { design: "Girasol", stock: 2, status: "active" }]);
+  });
+
   it("repetir una variante la reactiva sin duplicar; archivar todas deja la de por defecto activa", async () => {
     const pid = await seedProductWithDefault();
     await run("editar_variantes", { producto_id: pid, agregar: [{ design: "girasol" }] }, T0 + 1);
