@@ -1,4 +1,5 @@
 import { copy } from "@veki/core";
+import { handleAdminCommand } from "../admin/commands";
 import type { Env } from "../env";
 import { isVersionConflict } from "../actions/conversation-store";
 import { logEvent } from "../queues";
@@ -55,6 +56,12 @@ export async function handleUpdateMessage(msg: { update_id?: number; update?: un
         await handleCallback(env, update.callback_query!, deps.callback);
         return;
       case "text": {
+        // Comandos `/…` solo para role=admin; para cualquier otro chat `handleAdminCommand` devuelve null y sigue el flujo normal.
+        const adminReply = update.message!.text!.trim().startsWith("/") ? await handleAdminCommand(env, chatId!, update.message!.text!) : null;
+        if (adminReply !== null) {
+          await say(adminReply);
+          return;
+        }
         const reply = await runTurn(getRuntime(env), { chatId: chatId!, text: update.message!.text!.trim() });
         await respond(env, send, chatId!, reply, msg.update_id);
         return;

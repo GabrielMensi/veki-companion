@@ -1,4 +1,9 @@
 import { ulid } from "@veki/core";
+import { scanAlerts } from "./admin/alerts";
+import { sendDailyDigest } from "./admin/digest";
+import type { Env } from "./env";
+import { runBackup } from "./jobs/backup";
+import { runPurge } from "./jobs/purge";
 import type { D1Like } from "./public";
 
 /** Variables que este módulo necesita. La URL del hook de Pages sale de un secret, nunca del código. */
@@ -93,11 +98,28 @@ export async function rebuildIfDirty(
  * Esqueleto de los 2 crons (docs/02 §3.7). T14 lo engancha en `scheduled`; el resto de los
  * pasos (nudges, timeouts de content_jobs, backup, purgas, resumen) lo agregan sus tareas.
  */
-export async function handleCron(cron: string, env: RebuildEnv, now = Date.now()): Promise<void> {
+export async function handleCron(cron: string, env: RebuildEnv | Env, now = Date.now()): Promise<void> {
   if (cron === CRON_EVERY_15_MIN) {
     // TODO(T17): despachar nudges vencidos. TODO(T19): timeouts de content_jobs.
     await rebuildIfDirty(env, now);
   } else if (cron === CRON_DAILY) {
-    // TODO(T17): planificar nudges. TODO(T22): backup, purgas, resumen diario.
+    // TODO(T17): planificar nudges.
+    // T22: cada paso es independiente; uno que falla se registra y no frena a los demás.
+    const full = env as Env;
+    if (!full.MEDIA) return; // llamada solo con DB (tests de la reconstrucción): no hay nada que respaldar
+    for (const [name, step] of [
+      ["backup", () => runBackup(full, now)],
+      ["purge", () => runPurge(full, now)],
+      ["alerts", () => scanAlerts(full, now)],
+      ["digest", () => sendDailyDigest(full, now)],
+    ] as const) {
+      try {
+        await step();
+      } catch (e) {
+        await full.DB.prepare("INSERT INTO event_log (id, ts, actor, type, severity, data) VALUES (?, ?, 'cron', 'cron.step_failed', 'error', ?)")
+          .bind(ulid(now), now, JSON.stringify({ step: name, error: e instanceof Error ? e.name : "unknown" }))
+          .run();
+      }
+    }
   }
 }
