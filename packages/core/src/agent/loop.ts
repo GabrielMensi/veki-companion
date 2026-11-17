@@ -116,7 +116,11 @@ export async function runAgent(
     }
     messages.push({ role: "assistant", content: res.text, toolCalls: res.toolCalls });
 
-    for (const tc of res.toolCalls) {
+    // `responder` va al final: si el modelo lo manda junto a otra herramienta, primero se ejecuta la otra
+    // (antes un `responder` en primer lugar hacía ignorar la escritura que venía detrás).
+    const ordered = [...res.toolCalls].sort((a, b) => Number(a.name === "responder") - Number(b.name === "responder"));
+    let readInBatch = false;
+    for (const tc of ordered) {
       const tool = (content: string): Msg => ({ role: "tool", toolCallId: tc.id, name: tc.name, content });
       if (output) {
         messages.push(tool("Ignorada: ya hay respuesta."));
@@ -129,6 +133,10 @@ export async function runAgent(
       const name = tc.name as ToolName;
 
       if (name === "responder") {
+        if (readInBatch) {
+          messages.push(tool("Ignorada: primero mirá el resultado de la consulta y recién entonces respondé."));
+          continue;
+        }
         const checked = checkResponder(tc.arguments);
         if (checked.ok) {
           output = checked.output;
@@ -166,6 +174,7 @@ export async function runAgent(
         output = { texto: outcome.preview, botones: copy.botonesAccion(outcome.actionId), pendingActionId: outcome.actionId };
         state = { ...state, awaiting: null };
       } else {
+        if (outcome.kind === "result") readInBatch = true;
         messages.push(tool(outcome.kind === "error" ? outcome.message : outcome.content));
       }
     }

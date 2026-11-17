@@ -11,6 +11,14 @@ export type EvalTurn = {
   excludes?: string[];
   /** `pending`: el turno termina en una vista previa; `reply`: termina hablando con `responder`. */
   outcome?: "pending" | "reply";
+  /** El audio llego con baja confianza (el runtime lo marca con `lowConfidenceVoice`). */
+  lowConfidence?: boolean;
+  /** La respuesta tiene que ser exactamente UNA pregunta (un solo `?`). Solo se cuenta; el texto no se imprime. */
+  oneQuestion?: boolean;
+  /** Precio que tiene que quedar en el borrador al terminar el turno. */
+  draftPrice?: number;
+  /** Subconjunto de argumentos que tiene que tener la accion pendiente creada en el turno (datos correctos). */
+  pendingArgs?: Record<string, unknown>;
 };
 
 export type SeedVariant = { id: string; design: string; size: string; color: string; stock: number | null };
@@ -56,6 +64,10 @@ export const SAY = {
   vendi: "vendí 2 neceseres",
   laRosa: "la rosa",
   cambiarOtroPrecio: "mejor veinte mil",
+  voiceBolso: "Es un bolso de cuero tipo banana, lo dejo a doce mil pesos.",
+  precioSinProducto: "cambiale el precio",
+  stockSinProducto: "sumá cinco al stock",
+  vendiRosa: "vendí 2 neceseres rosa",
 } as const;
 
 /** Texto con el que entra al agente un evento de fotos (mismo formato que `albumEventText` del bot). */
@@ -66,6 +78,8 @@ export const photoEventText = (ids: string[]) =>
  * Guiones que corre `eval-chat.ts` contra el chat real. Cada turno se juzga solo por las herramientas elegidas
  * (nunca por el texto del modelo). Los botones "Sí" no son turnos de chat: no aparecen aca.
  */
+export const NECESER_Y_RINONERA = [RINONERA, NECESER];
+
 export const EVAL_SCENARIOS: EvalScenario[] = [
   {
     id: "alta-producto-con-fotos-y-voz",
@@ -98,6 +112,41 @@ export const EVAL_SCENARIOS: EvalScenario[] = [
     catalog: [NECESER],
     turns: [
       { user: SAY.vendi, includes: ["buscar_productos"], excludes: ["cambiar_stock"], outcome: "reply" },
+    ],
+  },
+  {
+    // Whisper puede oir "doce mil" como "dos mil": el numero queda en el borrador tal cual y nada se guarda sin Si.
+    id: "precio-dicho-por-voz",
+    covers: "diseno",
+    catalog: [],
+    turns: [
+      { user: photoEventText(["media-b1"]), includes: ["actualizar_borrador"], excludes: ["crear_producto"], outcome: "reply" },
+      { user: SAY.voiceBolso, lowConfidence: true, includes: ["actualizar_borrador"], excludes: ["crear_producto"], outcome: "reply", draftPrice: 12000 },
+    ],
+  },
+  {
+    id: "pedido-ambiguo-precio",
+    covers: "diseno",
+    catalog: NECESER_Y_RINONERA,
+    turns: [{ user: SAY.precioSinProducto, excludes: ["editar_producto", "cambiar_stock", "deshacer"], outcome: "reply", oneQuestion: true }],
+  },
+  {
+    id: "pedido-ambiguo-stock",
+    covers: "diseno",
+    catalog: NECESER_Y_RINONERA,
+    turns: [{ user: SAY.stockSinProducto, excludes: ["editar_producto", "cambiar_stock", "deshacer"], outcome: "reply", oneQuestion: true }],
+  },
+  {
+    id: "venta-de-variante-con-nombre",
+    covers: "diseno",
+    catalog: [NECESER],
+    turns: [
+      {
+        user: SAY.vendiRosa,
+        includes: ["buscar_productos", "cambiar_stock"],
+        outcome: "pending",
+        pendingArgs: { variante_id: "var-neceser-rosa", delta: -2, motivo: "venta" },
+      },
     ],
   },
 ];
