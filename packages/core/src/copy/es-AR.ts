@@ -42,3 +42,29 @@ export function formatPrecio(p: number | "consultar" | null | undefined): string
   if (p === "consultar" || p == null) return "precio a consultar";
   return `$${Math.round(p).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}`;
 }
+
+// ---- T18: acciones pendientes (confirmar, cambiar, cancelar, deshacer) ----
+
+/** `callback_data` del botón Deshacer del mensaje de éxito: `pa:<id>:undo` (válido 24 h). */
+export const paUndoData = (id: string) => `pa:${id}:undo`;
+
+export const copyAcciones = {
+  cancelado: "Listo, lo dejé sin hacer.",
+  deshecho: "Listo, lo deshice 👌",
+  nadaParaDeshacer: "No encuentro nada reciente para deshacer.",
+  yaDeshecho: "Eso ya lo había deshecho.",
+  noSePuedeDeshacer: "Eso no se puede deshacer.",
+  noEncontre: "No encuentro eso. ¿Me decís de nuevo cuál es?",
+  todaviaNo: "Eso todavía no lo sé hacer, perdoname 🙏",
+  stockNegativo: "Eso dejaría el stock en negativo. ¿Cuántas hay?",
+  stockDesconocido: "No tengo cargado cuántas hay. Decime el número y lo fijo.",
+  faltaCambio: "No me quedó claro qué cambiar. ¿Me lo decís de nuevo?",
+  fechasMal: "La feria no puede terminar antes de empezar. ¿Revisamos las fechas?",
+  botonDeshacer: "Deshacer",
+  productoCreado: (nombre: string) => `¡Listo! Ya cargué ${nombre} 🎉`,
+  productoEditado: (nombre: string) => `Listo, actualicé ${nombre}.`,
+  stockActualizado: (nombre: string, stock: number) => `Listo, ${nombre} queda con stock ${stock}.`,
+  feriaCreada: (nombre: string) => `¡Feria agendada! ${nombre} ya está en tu agenda 📅`,
+  feriaEditada: (nombre: string) => `Listo, cambié la feria ${nombre}.`,
+  feriaCancelada: (nombre: string) => `Listo, cancelé la feria ${nombre}.`,
+};
