@@ -1,6 +1,7 @@
 import {
-  createChatProvider,
+  createGroqChatChain,
   createSttProvider,
+  type ChatSettings,
   type AgentOutput,
   type ChatProvider,
   type ConversationStore,
@@ -11,11 +12,11 @@ import { D1ConversationStore, isVersionConflict } from "./actions/conversation-s
 import { attachMessage, d1ToolHost } from "./actions/pending";
 import { parseAllowlist, type Env } from "./env";
 import { albumEventText, setAgentEntry, type AgentEntry } from "./jobs/album-flush";
+import { chatChainDeps } from "./provider-ports";
 import { logEvent } from "./queues";
 import { runTurn, type TurnReply } from "./handlers/text";
 
-/** Cadena por defecto (docs/02 §4.2, D11). R3 cambia SOLO `buildChatChain` para armar el resto de la cadena. */
-const DEFAULT_CHAT = "groq:openai/gpt-oss-120b";
+/** Cadena de STT por defecto (docs/02 §4.2, D11). El chat usa `buildChatChain` (R3). */
 const DEFAULT_STT = "groq:whisper-large-v3";
 
 /** Lo que necesitan los handlers de texto, voz y álbumes. */
@@ -23,9 +24,19 @@ export type Runtime = { chat: ChatProvider; stt: SttProvider; store: Conversatio
 
 /** Proveedor de chat. Se resuelve en cada llamada: sin clave, falla ese turno y no el resto de los updates. */
 export function buildChatChain(env: Env): ChatProvider {
+  // R3: cadena de modelos de Groq y topes leídos de `settings` (con valores por defecto), una vez por runtime.
+  let ready: Promise<{ chain: ChatProvider; settings: ChatSettings }> | undefined;
+  const load = () =>
+    (ready ??= chatChainDeps(env).then(({ settings, deps }) => ({
+      settings,
+      chain: createGroqChatChain(settings, { groqApiKey: env.GROQ_API_KEY }, deps),
+    })));
   return {
-    complete: (req) =>
-      createChatProvider(DEFAULT_CHAT, { groqApiKey: env.GROQ_API_KEY, geminiApiKey: env.GEMINI_API_KEY }).complete(req),
+    complete: async (req) => (await load()).chain.complete(req),
+    agentLimits: async () => {
+      const { settings } = await load();
+      return { maxLlmCalls: settings.toolCallCap, historyLength: settings.historyLength };
+    },
   };
 }
 

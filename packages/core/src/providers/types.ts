@@ -28,6 +28,8 @@ export interface SttProvider {
 }
 export interface ChatProvider {
   complete(req: ChatRequest): Promise<ChatResult>;
+  /** Optional per-turn limits (from settings); `AgentDeps` values win when both are present. */
+  agentLimits?(): Promise<{ maxLlmCalls?: number; historyLength?: number }>;
 }
 
 /** Circuit-breaker row (`provider_state`). Times are epoch milliseconds. */

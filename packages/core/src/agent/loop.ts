@@ -92,8 +92,9 @@ export async function runAgent(
 ): Promise<AgentResult> {
   const { input } = args;
   let state = args.state;
-  const maxCalls = deps.maxLlmCalls ?? MAX_LLM_CALLS;
-  const histLen = deps.historyLength ?? MAX_HISTORY;
+  const limits = deps.chat.agentLimits ? await deps.chat.agentLimits().catch(() => ({})) : {};
+  const maxCalls = deps.maxLlmCalls ?? (limits as { maxLlmCalls?: number }).maxLlmCalls ?? MAX_LLM_CALLS;
+  const histLen = deps.historyLength ?? (limits as { historyLength?: number }).historyLength ?? MAX_HISTORY;
   const messages: Msg[] = [...trimHistory(args.history, histLen), { role: "user", content: input.text } as Msg];
   let regenerated = false;
   let output: AgentOutput | null = null;

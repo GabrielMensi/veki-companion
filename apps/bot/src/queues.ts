@@ -1,7 +1,9 @@
-import { ulid } from "@veki/core";
+import { copyPresupuesto, isProviderError, ulid } from "@veki/core";
 import type { Env } from "./env";
 import { handleUpdateMessage } from "./handlers/dispatch";
+import { sendTelegram } from "./handlers/media";
 import { handleAlbumFlush } from "./jobs/album-flush";
+import { retryDelayS } from "./provider-ports";
 
 /** Mensajes de q-updates y q-jobs. `type` decide el handler. */
 export type UpdateMessage = { type: "update"; update_id: number; update: unknown };
@@ -44,6 +46,17 @@ export async function logEvent(env: Env, type: string, severity: "info" | "warn"
     .run();
 }
 
+async function notifyBusy(body: unknown, env: Env): Promise<void> {
+  const u = (body as { update?: { message?: { chat?: { id?: number } }; callback_query?: { message?: { chat?: { id?: number } } } } } | null)?.update;
+  const chatId = u?.message?.chat?.id ?? u?.callback_query?.message?.chat?.id;
+  if (typeof chatId !== "number") return;
+  try {
+    await sendTelegram(env.TELEGRAM_BOT_TOKEN, chatId, copyPresupuesto.teAvisoEnUnRatito);
+  } catch {
+    /* el aviso es de cortesía: nunca rompe el reintento */
+  }
+}
+
 /** Consumidor: enruta cada mensaje por `type`; reintenta con espera, sin dormir dentro del consumidor. */
 export async function handleBatch(batch: MessageBatchLike, env: Env, router: Record<string, Handler> = handlers): Promise<void> {
   for (const m of batch.messages) {
@@ -60,7 +73,7 @@ export async function handleBatch(batch: MessageBatchLike, env: Env, router: Rec
         await env.DB.prepare("UPDATE updates SET status='done', processed_at=? WHERE update_id=?").bind(Date.now(), body!.update_id).run();
       }
       m.ack();
-    } catch {
+    } catch (err) {
       if (m.attempts >= MAX_ATTEMPTS) {
         if (body!.type === "update" && typeof body!.update_id === "number") {
           await env.DB.prepare("UPDATE updates SET status='failed', processed_at=? WHERE update_id=?").bind(Date.now(), body!.update_id).run();
@@ -68,7 +81,9 @@ export async function handleBatch(batch: MessageBatchLike, env: Env, router: Rec
         await logEvent(env, "error", "error", { queue: batch.queue, type: body!.type, attempts: m.attempts });
         m.ack();
       } else {
-        m.retry({ delaySeconds: Math.min(30 * m.attempts, 300) });
+        // R3: todos los modelos limitados (429 / cooldown) -> reintento con el `retry-after`; ella solo ve el aviso amable, una vez.
+        if (isProviderError(err) && err.retryAfterS !== undefined && m.attempts === 1) await notifyBusy(body, env);
+        m.retry({ delaySeconds: retryDelayS(err, m.attempts) });
       }
     }
   }
