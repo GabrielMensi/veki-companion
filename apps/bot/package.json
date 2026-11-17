@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "db:migrate:local": "wrangler d1 migrations apply veki --local",
     "test": "vitest run",
-    "eval:chat": "vite-node scripts/eval-chat.ts"
+    "eval:chat": "vite-node scripts/eval-chat.ts",
+    "webhook:set": "vite-node scripts/set-webhook.ts"
   },
   "dependencies": {
     "@veki/core": "*"
