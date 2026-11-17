@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FakeChatProvider, ProviderError } from "../../src/providers";
-import { copy, emptyState, runAgent, nextMissingField, applyDraftUpdate, type AgentState } from "../../src";
+import { copy, emptyState, runAgent, toolDefs, nextMissingField, applyDraftUpdate, type AgentState } from "../../src";
 import { call, FakeHost, say, turn } from "./helpers";
 
 const run = (script: ConstructorParameters<typeof FakeChatProvider>[0], state: AgentState = emptyState(), text = "hola") => {
@@ -194,5 +194,16 @@ describe("llamada a herramienta mal armada por el modelo", () => {
   it("si vuelve a fallar, la excepción sube (la cola reintenta)", async () => {
     const e = new ProviderError("bad_output", "x", { status: 400, code: "tool_use_failed" });
     await expect(run([e, e]).p).rejects.toBe(e);
+  });
+});
+
+describe("deshacer sin argumentos para el modelo", () => {
+  it("el esquema que ve el modelo no tiene parámetros y un accion_id inventado se ignora", async () => {
+    const def = toolDefs.find((t) => t.name === "deshacer")!;
+    expect(def.parameters).toEqual({ type: "object", properties: {} });
+    const { host, p } = run([turn(call("deshacer", { accion_id: "inventado" }))]);
+    await p;
+    expect(host.pending[0]!.tool).toBe("deshacer");
+    expect(host.pending[0]!.args).toEqual({});
   });
 });
