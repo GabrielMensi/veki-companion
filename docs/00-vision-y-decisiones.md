@@ -170,3 +170,20 @@ Respuestas del autor a las preguntas abiertas de `docs/02-diseno.md` §10: se ad
 | Q8 | Precios públicos; "consultar" solo si ella no quiere mostrarlo. |
 | Q9 | Encargos personalizados después de la etapa 4. |
 | Q10 | Sitio en `veky.pages.dev` si está libre. |
+
+## 15. Límites reales de Groq, plan gratis (consola, 2026-11-17)
+
+Confirmados por el autor desde `console.groq.com`. Cierran el riesgo R3.
+
+| Modelo | RPM | RPD | TPM | TPD |
+|---|---|---|---|---|
+| `openai/gpt-oss-120b` | 30 | 1K | 8K | 200K |
+| `openai/gpt-oss-20b` | 30 | 1K | 8K | 200K |
+| `qwen/qwen3.8-27b` | 30 | 1K | 8K | 200K |
+| `openai/gpt-oss-safeguard-20b` | 3 | 1K | 2K | 200K |
+| `whisper-large-v3` / `-turbo` | 20 | 2K | n/a | n/a (7,2K s de audio por hora, 28,8K s por día) |
+
+- Los topes son por modelo: la cadena de chat de tres modelos suma ~600K tokens/día; el presupuesto por defecto de 200K por modelo del contador (T22/R3) es el correcto.
+- `qwen/qwen3.8-27b` es también el modelo de visión de respaldo (D11): visión y chat de respaldo comparten sus 200K diarios.
+- Whisper: 28,8K s de audio por día equivalen a 8 horas, muy por encima del uso esperado (decenas de notas de ~10 s).
+- `gpt-oss-safeguard-20b` (2K TPM) no sirve para el chat y queda fuera de la cadena.
