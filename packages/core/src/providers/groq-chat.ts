@@ -26,6 +26,8 @@ export class GroqChat implements ChatProvider {
       const body: Record<string, unknown> = {
         model: this.o.model,
         temperature: this.o.temperature ?? 0.3,
+        // Tope explicito: sin el, Groq cuenta el maximo del modelo contra el limite de salida por minuto (qwen: 1000 OTPM).
+        max_completion_tokens: 900,
         messages: [{ role: "system", content: req.system }, ...req.messages.map(toWire)],
       };
       if (req.tools?.length) {
